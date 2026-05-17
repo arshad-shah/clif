@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>clif — Element Catalog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0c0a09;--bg2:#1c1917;--bg3:#292524;--bg4:#44403c;
+  --fg:#fafaf9;--fg2:#d6d3d1;--fg3:#a8a29e;--fg4:#78716c;
+  --amber:#f59e0b;--amber-dim:#b45309;--amber-glow:#fbbf24;
+  --copper:#c2410c;--copper-light:#ea580c;
+  --teal:#14b8a6;--emerald:#10b981;--rose:#f43f5e;--sky:#38bdf8;
+  --radius:8px;--mono:'IBM Plex Mono',monospace;--sans:'Instrument Sans',sans-serif;
+}
+html{font-size:15px;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.6;overflow-x:hidden}
+::selection{background:var(--amber);color:var(--bg)}
+
+/* Header */
+.hero{padding:4rem 2rem 3rem;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,rgba(245,158,11,.12) 0%,transparent 60%);pointer-events:none}
+.hero h1{font-family:var(--mono);font-size:3.2rem;font-weight:600;letter-spacing:-.03em;margin-bottom:.5rem}
+.hero h1 span{color:var(--amber);text-shadow:0 0 40px rgba(245,158,11,.3)}
+.hero p{color:var(--fg3);font-size:1.1rem;max-width:500px;margin:0 auto}
+.badge-row{display:flex;gap:.5rem;justify-content:center;margin-top:1.2rem;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .7rem;background:var(--bg2);border:1px solid var(--bg3);border-radius:20px;font-size:.75rem;font-family:var(--mono);color:var(--fg3)}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--emerald);box-shadow:0 0 6px var(--emerald)}
+
+/* Nav */
+nav{position:sticky;top:0;z-index:100;background:rgba(12,10,9,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--bg3);padding:.6rem 2rem;display:flex;gap:.4rem;overflow-x:auto;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav a{color:var(--fg3);text-decoration:none;font-size:.78rem;font-family:var(--mono);padding:.35rem .7rem;border-radius:6px;white-space:nowrap;transition:all .2s}
+nav a:hover,nav a.active{color:var(--amber);background:rgba(245,158,11,.08)}
+
+/* Layout */
+.catalog{max-width:1100px;margin:0 auto;padding:2rem}
+section{margin-bottom:3.5rem}
+section>h2{font-family:var(--mono);font-size:1.4rem;font-weight:600;color:var(--amber);margin-bottom:.3rem;display:flex;align-items:center;gap:.5rem}
+section>h2::before{content:'›';color:var(--fg4);font-weight:400}
+section>p.desc{color:var(--fg3);font-size:.9rem;margin-bottom:1.5rem}
+
+/* Terminal Frame */
+.term{background:var(--bg2);border:1px solid var(--bg3);border-radius:var(--radius);overflow:hidden;margin-bottom:1rem}
+.term-bar{display:flex;align-items:center;gap:6px;padding:10px 14px;background:var(--bg);border-bottom:1px solid var(--bg3)}
+.term-dot{width:10px;height:10px;border-radius:50%}
+.term-dot.r{background:#ef4444}.term-dot.y{background:#eab308}.term-dot.g{background:#22c55e}
+.term-title{margin-left:8px;font-size:.72rem;font-family:var(--mono);color:var(--fg4)}
+.term-body{padding:16px 18px;font-family:var(--mono);font-size:.82rem;line-height:1.7;white-space:pre-wrap;min-height:60px}
+
+/* Color classes */
+.c-amber{color:var(--amber)}.c-copper{color:var(--copper-light)}.c-teal{color:var(--teal)}
+.c-emerald{color:var(--emerald)}.c-rose{color:var(--rose)}.c-sky{color:var(--sky)}
+.c-dim{color:var(--fg4)}.c-fg2{color:var(--fg2)}.c-fg{color:var(--fg)}
+.c-bold{font-weight:600}.c-italic{font-style:italic}.c-under{text-decoration:underline}
+.c-strike{text-decoration:line-through}.c-inv{background:var(--fg);color:var(--bg);padding:0 3px;border-radius:2px}
+.c-bg-amber{background:rgba(245,158,11,.15);padding:0 3px;border-radius:2px}
+
+/* Grid */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1rem}
+
+/* Interactive elements */
+.interactive-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.8rem}
+.btn{padding:.4rem 1rem;border:1px solid var(--bg3);border-radius:6px;background:var(--bg2);color:var(--fg2);font-family:var(--mono);font-size:.78rem;cursor:pointer;transition:all .2s}
+.btn:hover{border-color:var(--amber);color:var(--amber)}
+.btn.active{border-color:var(--amber);background:rgba(245,158,11,.1);color:var(--amber)}
+
+/* Spinner animation */
+@keyframes spin{0%{content:'⠋'}8%{content:'⠙'}16%{content:'⠹'}25%{content:'⠸'}33%{content:'⠼'}42%{content:'⠴'}50%{content:'⠦'}58%{content:'⠧'}66%{content:'⠇'}75%{content:'⠏'}83%{content:'⠋'}100%{content:'⠙'}}
+.spinner::before{content:'⠋';animation:spin .8s steps(10) infinite;color:var(--amber)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.cursor-blink{animation:blink 1s step-end infinite;color:var(--amber)}
+@keyframes progress-fill{0%{width:0}100%{width:72%}}
+.progress-bar{display:inline-block;width:72%;height:100%;background:var(--amber);border-radius:2px;animation:progress-fill 2.5s ease-out}
+@keyframes typewriter{from{width:0}to{width:100%}}
+
+/* Prompt interactive states */
+.prompt-option{display:flex;align-items:center;gap:.5rem;padding:.2rem 0;cursor:pointer;transition:color .15s}
+.prompt-option:hover{color:var(--amber)}
+.prompt-option .radio{width:14px;height:14px;border-radius:50%;border:2px solid var(--fg4);transition:all .15s;flex-shrink:0}
+.prompt-option.selected .radio{border-color:var(--amber);background:var(--amber);box-shadow:0 0 8px rgba(245,158,11,.3)}
+.prompt-option .check{width:14px;height:14px;border-radius:3px;border:2px solid var(--fg4);transition:all .15s;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:9px}
+.prompt-option.selected .check{border-color:var(--teal);background:var(--teal);color:var(--bg)}
+
+/* Confirm */
+.confirm-toggle{display:inline-flex;gap:0;border:1px solid var(--bg3);border-radius:6px;overflow:hidden}
+.confirm-toggle span{padding:.25rem .8rem;font-size:.8rem;cursor:pointer;transition:all .15s}
+.confirm-toggle span.active{background:var(--amber);color:var(--bg);font-weight:600}
+.confirm-toggle span:not(.active):hover{background:var(--bg3)}
+
+/* Input styling */
+.prompt-input{display:flex;align-items:center;gap:.5rem}
+.prompt-input input{background:transparent;border:none;border-bottom:1px solid var(--fg4);color:var(--fg);font-family:var(--mono);font-size:.82rem;padding:.2rem 0;width:200px;outline:none;transition:border-color .2s}
+.prompt-input input:focus{border-color:var(--amber)}
+.prompt-input input::placeholder{color:var(--fg4)}
+
+/* Number spinner */
+.num-ctrl{display:inline-flex;align-items:center;gap:.4rem}
+.num-ctrl button{width:22px;height:22px;border-radius:4px;border:1px solid var(--bg3);background:var(--bg);color:var(--fg2);font-family:var(--mono);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.9rem;transition:all .15s}
+.num-ctrl button:hover{border-color:var(--amber);color:var(--amber)}
+.num-ctrl .num-val{font-family:var(--mono);font-size:.9rem;min-width:30px;text-align:center;color:var(--amber)}
+
+/* Footer */
+footer{text-align:center;padding:3rem 2rem;color:var(--fg4);font-size:.8rem;font-family:var(--mono);border-top:1px solid var(--bg3)}
+footer a{color:var(--amber);text-decoration:none}
+
+/* Responsive */
+@media(max-width:600px){
+  .hero h1{font-size:2.2rem}
+  .catalog{padding:1rem}
+  .grid2{grid-template-columns:1fr}
+  nav{padding:.5rem 1rem}
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1><span>clif</span></h1>
+  <p>Zero-dependency CLI framework — fast, composable, beautiful terminal output</p>
+  <div class="badge-row">
+    <span class="badge"><span class="dot"></span>0 dependencies</span>
+    <span class="badge">~30KB gzipped</span>
+    <span class="badge">ESM + CJS</span>
+    <span class="badge">TypeScript</span>
+  </div>
+</div>
+
+<nav id="nav">
+  <a href="#colors">Colors</a>
+  <a href="#box">Box</a>
+  <a href="#table">Table</a>
+  <a href="#list">List & Tree</a>
+  <a href="#kv">Key-Value</a>
+  <a href="#spinner">Spinner</a>
+  <a href="#progress">Progress</a>
+  <a href="#log">Log Helpers</a>
+  <a href="#divider">Divider</a>
+  <a href="#banner">Banner</a>
+  <a href="#text">Text Input</a>
+  <a href="#password">Password</a>
+  <a href="#select">Select</a>
+  <a href="#multiselect">Multiselect</a>
+  <a href="#confirm">Confirm</a>
+  <a href="#number">Number</a>
+  <a href="#group">Group</a>
+</nav>
+
+<div class="catalog">
+
+<!-- ═══════════ COLORS ═══════════ -->
+<section id="colors">
+  <h2>Colors</h2>
+  <p class="desc">Full ANSI color system with modifiers, 16/256/truecolor, hex support, and NO_COLOR compliance.</p>
+  <div class="grid2">
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">modifiers</span></div>
+      <div class="term-body"><span class="c-bold">bold text</span>
+<span class="c-dim">dim text</span>
+<span class="c-italic">italic text</span>
+<span class="c-under">underline text</span>
+<span class="c-strike">strikethrough text</span>
+<span class="c-inv">inverse text</span></div>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">foreground colors</span></div>
+      <div class="term-body"><span style="color:#ef4444">red</span>  <span style="color:#22c55e">green</span>  <span style="color:#3b82f6">blue</span>  <span style="color:#eab308">yellow</span>
+<span style="color:#a855f7">magenta</span>  <span style="color:#06b6d4">cyan</span>  <span style="color:#fff">white</span>  <span style="color:#6b7280">gray</span>
+<span style="color:#f87171">brightRed</span>  <span style="color:#4ade80">brightGreen</span>  <span style="color:#60a5fa">brightBlue</span>
+<span style="color:#facc15">brightYellow</span>  <span style="color:#c084fc">brightMagenta</span>  <span style="color:#22d3ee">brightCyan</span></div>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">background + compose</span></div>
+      <div class="term-body"><span style="background:#ef4444;color:#fff;padding:0 4px;border-radius:2px">bgRed</span>  <span style="background:#3b82f6;color:#fff;padding:0 4px;border-radius:2px">bgBlue</span>  <span style="background:#22c55e;color:#000;padding:0 4px;border-radius:2px">bgGreen</span>
+<span style="background:#eab308;color:#000;padding:0 4px;border-radius:2px">bgYellow</span>  <span style="background:#a855f7;color:#fff;padding:0 4px;border-radius:2px">bgMagenta</span>  <span style="background:#06b6d4;color:#000;padding:0 4px;border-radius:2px">bgCyan</span>
+
+<span class="c-dim">// compose multiple styles:</span>
+<span class="c-bold" style="color:#ef4444;text-decoration:underline">compose(bold, red, underline)('error!')</span></div>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">hex + truecolor + 256</span></div>
+      <div class="term-body"><span style="color:#ff6b35">hex('#ff6b35')</span>  <span style="color:#7b68ee">hex('#7b68ee')</span>  <span style="color:#00cec9">hex('#00cec9')</span>
+<span style="color:rgb(255,105,180)">rgb(255, 105, 180)</span>
+<span style="color:rgb(100,200,50)">ansi256(82)</span>
+
+<span class="c-dim">// Respects NO_COLOR and FORCE_COLOR env</span>
+<span class="c-dim">// Auto-detects terminal color depth</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ BOX ═══════════ -->
+<section id="box">
+  <h2>Box</h2>
+  <p class="desc">Bordered boxes with 5 styles — single, double, round, bold, and none.</p>
+  <div class="grid2">
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">box styles</span></div>
+      <div class="term-body" id="box-demo"><span class="c-amber">┌──────────────────────┐</span>
+<span class="c-amber">│</span>  Hello from clif!     <span class="c-amber">│</span>
+<span class="c-amber">│</span>  <span class="c-dim">single border style</span>  <span class="c-amber">│</span>
+<span class="c-amber">└──────────────────────┘</span></div>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">box options</span></div>
+      <div class="term-body"><span class="c-teal">╔══════════════════════╗</span>
+<span class="c-teal">║</span>  <span class="c-bold">Deploy Complete</span>      <span class="c-teal">║</span>
+<span class="c-teal">║</span>                       <span class="c-teal">║</span>
+<span class="c-teal">║</span>  <span class="c-dim">v2.1.0 → production</span>  <span class="c-teal">║</span>
+<span class="c-teal">║</span>  <span class="c-emerald">✓ 3 services healthy</span> <span class="c-teal">║</span>
+<span class="c-teal">╚══════════════════════╝</span></div>
+    </div>
+  </div>
+  <div class="interactive-row">
+    <button class="btn active" onclick="setBox('single')">Single</button>
+    <button class="btn" onclick="setBox('double')">Double</button>
+    <button class="btn" onclick="setBox('round')">Round</button>
+    <button class="btn" onclick="setBox('bold')">Bold</button>
+    <button class="btn" onclick="setBox('none')">None</button>
+  </div>
+</section>
+
+<!-- ═══════════ TABLE ═══════════ -->
+<section id="table">
+  <h2>Table</h2>
+  <p class="desc">Formatted tables with header highlighting, column alignment, and padding control.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">table</span></div>
+    <div class="term-body"><span class="c-bold c-amber">  Package       Version   Size      Status    </span>
+<span class="c-dim">  ────────────  ────────  ────────  ──────────</span>
+  clif          0.1.0     30 kB     <span class="c-emerald">✓ latest</span>
+  react         19.1.0    2.5 kB    <span class="c-emerald">✓ latest</span>
+  typescript    5.8.3     6.1 MB    <span class="c-amber">↑ 5.9.0</span>
+  vite          7.0.1     1.8 MB    <span class="c-rose">✗ 7.1.2</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ LIST & TREE ═══════════ -->
+<section id="list">
+  <h2>List &amp; Tree</h2>
+  <p class="desc">Bullet lists and indented tree structures with connector lines.</p>
+  <div class="grid2">
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">list</span></div>
+      <div class="term-body"><span class="c-amber">  •</span> Install dependencies
+<span class="c-amber">  •</span> Configure environment
+<span class="c-amber">  •</span> Run migrations
+<span class="c-amber">  •</span> Start dev server</div>
+    </div>
+    <div class="term">
+      <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">tree</span></div>
+      <div class="term-body"><span class="c-bold">src/</span>
+<span class="c-dim">├──</span> <span class="c-sky">core/</span>
+<span class="c-dim">│   ├──</span> colors.ts
+<span class="c-dim">│   ├──</span> args.ts
+<span class="c-dim">│   └──</span> command.ts
+<span class="c-dim">├──</span> <span class="c-sky">output/</span>
+<span class="c-dim">│   └──</span> components.ts
+<span class="c-dim">├──</span> <span class="c-sky">prompts/</span>
+<span class="c-dim">│   └──</span> prompts.ts
+<span class="c-dim">└──</span> index.ts</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ KEY-VALUE ═══════════ -->
+<section id="kv">
+  <h2>Key-Value</h2>
+  <p class="desc">Aligned key-value pair display with configurable separator.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">keyValue</span></div>
+    <div class="term-body"><span class="c-bold">  Name</span><span class="c-dim">  ·····  </span>clif
+<span class="c-bold">  Version</span><span class="c-dim">  ··  </span>0.1.0
+<span class="c-bold">  License</span><span class="c-dim">  ··  </span>MIT
+<span class="c-bold">  Node</span><span class="c-dim">  ·····  </span>≥ 22.0.0
+<span class="c-bold">  Size</span><span class="c-dim">  ·····  </span><span class="c-emerald">30 kB (gzip: 9.5 kB)</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ SPINNER ═══════════ -->
+<section id="spinner">
+  <h2>Spinner</h2>
+  <p class="desc">Animated loading spinner with start/stop/succeed/fail/warn methods.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">spinner</span></div>
+    <div class="term-body" id="spinner-demo"><span class="spinner"></span> <span class="c-fg2">Installing dependencies…</span>
+
+<span class="c-emerald">✓</span> Dependencies installed <span class="c-dim">(2.3s)</span>
+<span class="c-emerald">✓</span> TypeScript compiled <span class="c-dim">(0.8s)</span>
+<span class="c-rose">✗</span> Lint check failed <span class="c-dim">(1.1s)</span>
+<span class="c-amber">⚠</span> 3 warnings found</div>
+  </div>
+</section>
+
+<!-- ═══════════ PROGRESS ═══════════ -->
+<section id="progress">
+  <h2>Progress Bar</h2>
+  <p class="desc">Customizable progress bar with percentage, ETA, and custom format strings.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">progress</span></div>
+    <div class="term-body">  <span class="c-amber">Downloading</span>  <span style="display:inline-block;width:260px;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden;vertical-align:middle"><span class="progress-bar"></span></span>  <span class="c-fg2" id="pct">72%</span>  <span class="c-dim">ETA 4s</span>
+
+  <span class="c-teal">Building</span>     <span style="display:inline-block;width:260px;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden;vertical-align:middle"><span style="display:inline-block;width:100%;height:100%;background:var(--teal);border-radius:3px"></span></span>  <span class="c-fg2">100%</span>  <span class="c-emerald">Done</span>
+
+  <span class="c-dim">Linting</span>      <span style="display:inline-block;width:260px;height:12px;background:var(--bg3);border-radius:3px;overflow:hidden;vertical-align:middle"><span style="display:inline-block;width:35%;height:100%;background:var(--fg4);border-radius:3px"></span></span>  <span class="c-fg2">35%</span>  <span class="c-dim">ETA 12s</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ LOG HELPERS ═══════════ -->
+<section id="log">
+  <h2>Log Helpers</h2>
+  <p class="desc">Semantic log levels — info, success, warn, error, debug — with appropriate coloring.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">log helpers</span></div>
+    <div class="term-body"><span class="c-sky">ℹ</span> <span class="c-sky">info</span>     Server listening on port 3000
+<span class="c-emerald">✓</span> <span class="c-emerald">success</span>  Database connection established
+<span class="c-amber">⚠</span> <span class="c-amber">warn</span>     Rate limit approaching (82/100)
+<span class="c-rose">✗</span> <span class="c-rose">error</span>    Failed to read config: ENOENT
+<span class="c-dim">●</span> <span class="c-dim">debug</span>    Cache miss for key "user:42"</div>
+  </div>
+</section>
+
+<!-- ═══════════ DIVIDER ═══════════ -->
+<section id="divider">
+  <h2>Divider</h2>
+  <p class="desc">Horizontal rule with optional centered label.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">divider</span></div>
+    <div class="term-body"><span class="c-dim">────────────────────────────────────────────</span>
+
+<span class="c-dim">──────────────</span> <span class="c-amber">Build Output</span> <span class="c-dim">──────────────</span>
+
+<span class="c-dim">═══════════════</span> <span class="c-teal">Test Results</span> <span class="c-dim">═══════════════</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ BANNER ═══════════ -->
+<section id="banner">
+  <h2>Banner</h2>
+  <p class="desc">Full-width highlighted message bar for important notices.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">banner</span></div>
+    <div class="term-body"><span style="display:block;background:rgba(16,185,129,.15);border-left:3px solid var(--emerald);padding:6px 12px;border-radius:0 4px 4px 0;margin-bottom:8px"><span class="c-emerald c-bold">SUCCESS</span>  <span class="c-fg2">Deployment complete — v2.1.0 is live</span></span>
+<span style="display:block;background:rgba(244,63,94,.12);border-left:3px solid var(--rose);padding:6px 12px;border-radius:0 4px 4px 0;margin-bottom:8px"><span class="c-rose c-bold">ERROR</span>  <span class="c-fg2">Build failed — 3 type errors found</span></span>
+<span style="display:block;background:rgba(245,158,11,.1);border-left:3px solid var(--amber);padding:6px 12px;border-radius:0 4px 4px 0"><span class="c-amber c-bold">WARNING</span>  <span class="c-fg2">Node 20 reaches EOL in 30 days</span></span></div>
+  </div>
+</section>
+
+<!-- ═══════════ TEXT INPUT ═══════════ -->
+<section id="text">
+  <h2>Text Input</h2>
+  <p class="desc">Interactive text prompt with placeholder, validation, and default value support.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">text prompt</span></div>
+    <div class="term-body"><span class="c-amber">?</span> <span class="c-bold">What is your project name?</span>
+  <div class="prompt-input" style="margin-top:4px"><span class="c-amber">›</span> <input type="text" placeholder="my-awesome-app" spellcheck="false" id="text-input"></div>
+  <span class="c-dim" style="font-size:.75rem">  Press Enter to submit, Ctrl+C to cancel</span>
+
+<span class="c-emerald">✓</span> Project name: <span class="c-fg2" id="text-result">my-awesome-app</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ PASSWORD ═══════════ -->
+<section id="password">
+  <h2>Password Input</h2>
+  <p class="desc">Masked input showing dots for each character typed.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">password prompt</span></div>
+    <div class="term-body"><span class="c-amber">?</span> <span class="c-bold">Enter your API token:</span>
+  <div class="prompt-input" style="margin-top:4px"><span class="c-amber">›</span> <input type="password" placeholder="sk-..." spellcheck="false" id="pw-input"></div>
+
+<span class="c-emerald">✓</span> API token: <span class="c-fg2">••••••••••••</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ SELECT ═══════════ -->
+<section id="select">
+  <h2>Select</h2>
+  <p class="desc">Single-choice picker with arrow-key navigation and search filtering.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">select prompt</span></div>
+    <div class="term-body"><span class="c-amber">?</span> <span class="c-bold">Choose a framework:</span>
+<div style="margin-top:6px" id="select-list">
+  <div class="prompt-option selected" onclick="selectOption(this)"><span class="radio"></span><span class="c-amber">React</span></div>
+  <div class="prompt-option" onclick="selectOption(this)"><span class="radio"></span><span>Vue</span></div>
+  <div class="prompt-option" onclick="selectOption(this)"><span class="radio"></span><span>Svelte</span></div>
+  <div class="prompt-option" onclick="selectOption(this)"><span class="radio"></span><span>Astro</span></div>
+  <div class="prompt-option" onclick="selectOption(this)"><span class="radio"></span><span>Solid</span></div>
+</div>
+  <span class="c-dim" style="font-size:.75rem">  ↑↓ to navigate, Enter to select</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ MULTISELECT ═══════════ -->
+<section id="multiselect">
+  <h2>Multiselect</h2>
+  <p class="desc">Multiple-choice picker with space to toggle and Enter to submit.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">multiselect prompt</span></div>
+    <div class="term-body"><span class="c-amber">?</span> <span class="c-bold">Select features to enable:</span>
+<div style="margin-top:6px" id="multi-list">
+  <div class="prompt-option selected" onclick="toggleMulti(this)"><span class="check">✓</span><span class="c-teal">TypeScript</span></div>
+  <div class="prompt-option selected" onclick="toggleMulti(this)"><span class="check">✓</span><span class="c-teal">ESLint</span></div>
+  <div class="prompt-option" onclick="toggleMulti(this)"><span class="check"></span><span>Prettier</span></div>
+  <div class="prompt-option selected" onclick="toggleMulti(this)"><span class="check">✓</span><span class="c-teal">Vitest</span></div>
+  <div class="prompt-option" onclick="toggleMulti(this)"><span class="check"></span><span>Husky</span></div>
+</div>
+  <span class="c-dim" style="font-size:.75rem">  ↑↓ navigate, Space toggle, Enter submit</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ CONFIRM ═══════════ -->
+<section id="confirm">
+  <h2>Confirm</h2>
+  <p class="desc">Yes/No boolean prompt with configurable default.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">confirm prompt</span></div>
+    <div class="term-body"><span class="c-amber">?</span> <span class="c-bold">Deploy to production?</span>  <span class="confirm-toggle" id="confirm-toggle"><span class="active" onclick="setConfirm(true)">Yes</span><span onclick="setConfirm(false)">No</span></span>
+
+<span class="c-emerald" id="confirm-result">✓</span> <span id="confirm-text">Deploy to production: <span class="c-emerald">Yes</span></span></div>
+  </div>
+</section>
+
+<!-- ═══════════ NUMBER ═══════════ -->
+<section id="number">
+  <h2>Number Input</h2>
+  <p class="desc">Numeric prompt with min/max validation and step increment.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">number prompt</span></div>
+    <div class="term-body"><span class="c-amber">?</span> <span class="c-bold">How many workers?</span> <span class="c-dim">(1-16)</span>
+  <span class="c-amber">›</span> <span class="num-ctrl"><button onclick="numChange(-1)">−</button><span class="num-val" id="num-val">4</span><button onclick="numChange(1)">+</button></span>
+
+<span class="c-emerald">✓</span> Workers: <span class="c-fg2" id="num-result">4</span></div>
+  </div>
+</section>
+
+<!-- ═══════════ GROUP ═══════════ -->
+<section id="group">
+  <h2>Group</h2>
+  <p class="desc">Run multiple prompts in sequence, collecting all answers into a single object.</p>
+  <div class="term">
+    <div class="term-bar"><span class="term-dot r"></span><span class="term-dot y"></span><span class="term-dot g"></span><span class="term-title">group prompt</span></div>
+    <div class="term-body"><span class="c-dim">┌</span>  <span class="c-bold">Create new project</span>
+<span class="c-dim">│</span>
+<span class="c-emerald">◆</span>  Project name?  <span class="c-fg2">→ my-app</span>
+<span class="c-dim">│</span>
+<span class="c-emerald">◆</span>  Framework?     <span class="c-fg2">→ React</span>
+<span class="c-dim">│</span>
+<span class="c-emerald">◆</span>  TypeScript?    <span class="c-fg2">→ Yes</span>
+<span class="c-dim">│</span>
+<span class="c-emerald">◆</span>  Package mgr?   <span class="c-fg2">→ pnpm</span>
+<span class="c-dim">│</span>
+<span class="c-dim">└</span>  <span class="c-emerald">Done!</span> <span class="c-dim">Project configured in 8.2s</span></div>
+  </div>
+</section>
+
+</div>
+
+<footer>
+  <span class="c-amber">clif</span> v0.1.0 — built by <a href="https://arshadshah.com" target="_blank">Arshad Shah</a>
+</footer>
+
+<script>
+// Box style switcher
+const boxChars={
+  single:{tl:'┌',tr:'┐',bl:'└',br:'┘',h:'─',v:'│'},
+  double:{tl:'╔',tr:'╗',bl:'╚',br:'╝',h:'═',v:'║'},
+  round:{tl:'╭',tr:'╮',bl:'╰',br:'╯',h:'─',v:'│'},
+  bold:{tl:'┏',tr:'┓',bl:'┗',br:'┛',h:'━',v:'┃'},
+  none:{tl:' ',tr:' ',bl:' ',br:' ',h:' ',v:' '}
+};
+function setBox(style){
+  const c=boxChars[style],w=22;
+  const h=c.h.repeat(w);
+  document.getElementById('box-demo').innerHTML=
+    `<span class="c-amber">${c.tl}${h}${c.tr}</span>\n`+
+    `<span class="c-amber">${c.v}</span>  Hello from clif!     <span class="c-amber">${c.v}</span>\n`+
+    `<span class="c-amber">${c.v}</span>  <span class="c-dim">${style} border style</span>${' '.repeat(Math.max(0,7-style.length))}  <span class="c-amber">${c.v}</span>\n`+
+    `<span class="c-amber">${c.bl}${h}${c.br}</span>`;
+  document.querySelectorAll('#box .btn').forEach(b=>{
+    b.classList.toggle('active',b.textContent.toLowerCase()===style);
+  });
+}
+
+// Select
+function selectOption(el){
+  el.closest('.term-body').querySelectorAll('.prompt-option').forEach(o=>{
+    o.classList.remove('selected');
+    o.querySelector('span:last-child').className='';
+  });
+  el.classList.add('selected');
+  el.querySelector('span:last-child').className='c-amber';
+}
+
+// Multiselect
+function toggleMulti(el){
+  el.classList.toggle('selected');
+  const isOn=el.classList.contains('selected');
+  el.querySelector('.check').textContent=isOn?'✓':'';
+  el.querySelector('span:last-child').className=isOn?'c-teal':'';
+}
+
+// Confirm
+function setConfirm(v){
+  const t=document.getElementById('confirm-toggle');
+  t.children[0].className=v?'active':'';
+  t.children[1].className=v?'':'active';
+  document.getElementById('confirm-result').className=v?'c-emerald':'c-rose';
+  document.getElementById('confirm-result').textContent=v?'✓':'✗';
+  document.getElementById('confirm-text').innerHTML=`Deploy to production: <span class="${v?'c-emerald':'c-rose'}">${v?'Yes':'No'}</span>`;
+}
+
+// Number
+let numVal=4;
+function numChange(d){
+  numVal=Math.max(1,Math.min(16,numVal+d));
+  document.getElementById('num-val').textContent=numVal;
+  document.getElementById('num-result').textContent=numVal;
+}
+
+// Text input live update
+document.getElementById('text-input').addEventListener('input',e=>{
+  document.getElementById('text-result').textContent=e.target.value||'my-awesome-app';
+});
+
+// Nav active state on scroll
+const sections=[...document.querySelectorAll('section[id]')];
+const navLinks=[...document.querySelectorAll('nav a')];
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      navLinks.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id));
+    }
+  });
+},{rootMargin:'-20% 0px -70% 0px'});
+sections.forEach(s=>observer.observe(s));
+</script>
+</body>
+</html>

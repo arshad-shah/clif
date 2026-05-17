@@ -15,6 +15,10 @@ coverage/
 .astro/
 **/.astro/
 
+# Wrangler / Cloudflare local dev state
+.wrangler/
+**/.wrangler/
+
 # Logs
 *.log
 npm-debug.log*

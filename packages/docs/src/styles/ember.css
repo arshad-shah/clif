@@ -1,0 +1,128 @@
+/*
+ * Ember — A warm, amber-copper theme for clif documentation.
+ * Designed to work in both dark and light modes by remapping Starlight's
+ * white/gray ramp per-theme rather than only overriding the background.
+ *
+ * Starlight uses --sl-color-white as primary text and ramps gray-1..gray-6
+ * from light to dark. We invert that ramp under [data-theme="light"] so
+ * "primary text" stays dark on a cream background.
+ */
+
+:root {
+  --sl-font: "Inter", system-ui, -apple-system, sans-serif;
+  --sl-font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  --sl-text-sm: 0.875rem;
+
+  /* Brand ember palette (theme-agnostic) */
+  --ember-50: #fef3e0;
+  --ember-100: #fde2b3;
+  --ember-300: #f5c76a;
+  --ember-500: #d4860b;
+  --ember-700: #9a5a05;
+  --ember-900: #2a1a0a;
+}
+
+/* ---------- Dark theme (default) ---------- */
+[data-theme="dark"] {
+  --sl-color-accent-low: #2a1a0a;
+  --sl-color-accent: #d4860b;
+  --sl-color-accent-high: #f5c76a;
+
+  --sl-color-white: #faf3e8; /* primary text */
+  --sl-color-gray-1: #ede4d6;
+  --sl-color-gray-2: #c9bba9;
+  --sl-color-gray-3: #9a8c7a; /* muted text */
+  --sl-color-gray-4: #6b5e4f;
+  --sl-color-gray-5: #3e3529; /* borders */
+  --sl-color-gray-6: #1e1812; /* subtle surfaces */
+  --sl-color-black: #0e0a06; /* deepest bg */
+
+  --sl-color-bg: #0e0a06;
+  --sl-color-bg-nav: #161008;
+  --sl-color-bg-sidebar: #131008;
+  --sl-color-hairline-light: #2a1a0a;
+  --sl-color-hairline-shade: #3e3529;
+
+  --sl-color-bg-inline-code: #2a1a0a;
+  --ember-code-bg: #12100a;
+  --ember-code-border: var(--sl-color-hairline-shade);
+  --ember-hero-from: #0e0a06;
+  --ember-hero-to: #2a1a0a;
+  /* Active sidebar text: bright amber on the deep ember-low bg */
+  --ember-active-text: #f5c76a;
+}
+
+/* ---------- Light theme ---------- */
+[data-theme="light"] {
+  --sl-color-accent-low: #fef3e0;
+  --sl-color-accent: #b06e08;
+  --sl-color-accent-high: #5a3804;
+
+  /* Inverted ramp: "white" is now near-black ink, "black" is cream */
+  --sl-color-white: #1f1408; /* primary text — dark ink */
+  --sl-color-gray-1: #2e1f10;
+  --sl-color-gray-2: #4a3722;
+  --sl-color-gray-3: #6b5436; /* muted text */
+  --sl-color-gray-4: #9a8568;
+  --sl-color-gray-5: #d8c9b0; /* borders */
+  --sl-color-gray-6: #f0e6d3; /* subtle surfaces */
+  --sl-color-black: #fdf8f0; /* "deepest bg" inverted to cream */
+
+  --sl-color-bg: #fdf8f0;
+  --sl-color-bg-nav: #faf3e8;
+  --sl-color-bg-sidebar: #f7efe2;
+  --sl-color-hairline-light: #ead8b8;
+  --sl-color-hairline-shade: #d8c9b0;
+
+  --sl-color-bg-inline-code: #f3e6cc;
+  --sl-color-text-accent: var(--sl-color-accent);
+
+  --ember-code-bg: #fcf8f0;
+  --ember-code-border: #e8dcc8;
+  --ember-hero-from: #fdf8f0;
+  --ember-hero-to: #fef3e0;
+  /* Active sidebar text: deep roasted brown on the cream ember-low bg */
+  --ember-active-text: #5a3804;
+}
+
+/* ---------- Component refinements ---------- */
+
+/* Subtle ember glow on sidebar active link */
+nav[aria-label="Main"] a[aria-current="page"] {
+  border-left: 2px solid var(--sl-color-accent);
+  background: var(--sl-color-accent-low);
+  padding-left: calc(0.5rem - 2px);
+  color: var(--ember-active-text);
+  font-weight: 600;
+}
+
+/* Code blocks — driven by theme vars, no !important fights */
+.sl-markdown-content pre:has(code) {
+  background: var(--ember-code-bg);
+  border: 1px solid var(--ember-code-border);
+}
+
+/* Inline code chip */
+.sl-markdown-content :not(pre) > code {
+  background: var(--sl-color-bg-inline-code);
+  color: var(--sl-color-accent-high);
+  border-radius: 0.25rem;
+  padding: 0.1em 0.35em;
+}
+
+/* Hero gradient now follows the theme */
+.hero {
+  background: linear-gradient(135deg, var(--ember-hero-from) 0%, var(--ember-hero-to) 100%);
+}
+
+/* Heading accent underline */
+.sl-markdown-content h2 {
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  padding-bottom: 0.4em;
+}
+
+/* Slightly tighter contrast for table borders in light mode */
+.sl-markdown-content table th,
+.sl-markdown-content table td {
+  border-color: var(--sl-color-hairline-shade);
+}
