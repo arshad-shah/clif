@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Only one release run at a time — prevents racing version PRs / tag creation.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # tag + push the Version Packages PR
+  pull-requests: write # create / update the Version Packages PR
+  id-token: write # mint the OIDC token npm uses to authenticate
+
+jobs:
+  release:
+    name: changesets — version or publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Requires the `npm-publish` GitHub Environment to exist. Configure it
+    # with required reviewers so a human approves every publish. See
+    # .github/REPO_SETUP.md for the one-time setup.
+    environment: npm-publish
+
+    steps:
+      - name: Checkout (full history — changesets needs it)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          # registry-url is required for npm to consult OIDC.
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build clif
+        run: pnpm build
+
+      # changesets/action does one of two things:
+      #   1. If unconsumed .changeset/*.md files exist, opens / updates a
+      #      "Version Packages" PR that bumps versions + writes CHANGELOG.
+      #   2. If no changesets exist (meaning the Version Packages PR was
+      #      just merged), runs `publish` — `pnpm release` here.
+      # The `publish` script invokes `changeset publish`, which in turn runs
+      # `npm publish --provenance` for every package being released. With
+      # `id-token: write` permission AND a trusted publisher configured on
+      # npmjs.com, no NPM_TOKEN is needed — npm mints credentials from the
+      # GitHub OIDC token, scoped to this exact workflow + ref.
+      - name: Create Release Pull Request or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm version-packages
+          publish: pnpm release
+          commit: "chore: version packages"
+          title: "chore: version packages"
+          # Cuts a tag (e.g. clif@1.0.0) AND a GitHub Release per published
+          # package, with the CHANGELOG section as the release body. This is
+          # what gives us a catalog of releases on the GitHub side.
+          createGithubReleases: true
+        env:
+          # Required by changesets/action to authenticate against the GitHub
+          # API when it creates the Version Packages PR and the releases.
+          # The default GITHUB_TOKEN already has the perms granted above.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tells the npm CLI to emit provenance attestations on publish.
+          # Combined with `id-token: write` above and a trusted publisher
+          # configured on npmjs.com, no NPM_TOKEN is needed — npm exchanges
+          # the GitHub OIDC token for short-lived publish credentials.
+          # Never set NPM_TOKEN here; doing so defeats trusted publishing.
+          NPM_CONFIG_PROVENANCE: "true"
+
+      - name: Summarize result
+        if: always()
+        run: |
+          if [ "${{ steps.changesets.outputs.published }}" = "true" ]; then
+            echo "Published packages:"
+            echo '${{ steps.changesets.outputs.publishedPackages }}'
+          elif [ -n "${{ steps.changesets.outputs.pullRequestNumber }}" ]; then
+            echo "Opened / updated Version Packages PR #${{ steps.changesets.outputs.pullRequestNumber }}"
+          else
+            echo "No changesets to consume — nothing to do."
+          fi
