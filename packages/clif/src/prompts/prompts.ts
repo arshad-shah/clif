@@ -82,6 +82,35 @@ function clearLine(): void {
 }
 
 /**
+ * Enter raw-input mode and return a teardown closure that restores the prior
+ * mode. Centralises the save / set / restore dance used by every interactive
+ * prompt so callers can't accidentally leave the terminal in raw mode.
+ */
+function enterRawMode(stdin: StdinLike): () => void {
+  const wasRaw = stdin.isRaw ?? false;
+  stdin.setRawMode?.(true);
+  stdin.resume?.();
+  return () => {
+    stdin.setRawMode?.(wasRaw);
+    stdin.pause?.();
+  };
+}
+
+/** Format the interactive question header shown to the user. */
+function formatQuestion(message: string): string {
+  return `${cyan("?")} ${bold(message)}`;
+}
+
+/** Format the final "answered" summary line. Includes a trailing newline. */
+function formatAnswer(message: string, display: string): string {
+  return `${green("✔")} ${bold(message)} ${dim("·")} ${display}\n`;
+}
+
+/** Move the cursor up one row and clear it — used to overwrite a question
+ * prompt with its answered-summary on completion. */
+const CLEAR_PREV_LINE = "\x1b[1A\r\x1b[K";
+
+/**
  * Read a single line of input character-by-character via raw stdin.
  * Returns the user's input on Enter, or rejects with PromptError on Ctrl+C.
  *
@@ -91,16 +120,13 @@ function clearLine(): void {
 function readLineRaw(): Promise<string> {
   const { stdin } = getStdio();
   return new Promise<string>((resolve, reject) => {
-    const wasRaw = stdin.isRaw ?? false;
-    stdin.setRawMode?.(true);
-    stdin.resume?.();
+    const restoreMode = enterRawMode(stdin);
     let buffer = "";
 
     const cleanup = () => {
       stdin.off("data", onData);
       stdin.off("line", onLine);
-      stdin.setRawMode?.(wasRaw);
-      stdin.pause?.();
+      restoreMode();
     };
 
     // Test stdio emits "line" directly; honor it as a fast path.
@@ -158,7 +184,7 @@ export async function text(opts: TextOptions): Promise<string> {
   const defaultHint = opts.default ? dim(` (${opts.default})`) : "";
   const placeholderHint = placeholder ? dim(placeholder) : "";
 
-  write(`${cyan("?")} ${bold(message)}${defaultHint} ${placeholderHint}\n`);
+  write(`${formatQuestion(message)}${defaultHint} ${placeholderHint}\n`);
 
   while (true) {
     write(`${cyan("❯")} `);
@@ -178,7 +204,7 @@ export async function text(opts: TextOptions): Promise<string> {
       }
     }
 
-    write(`\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${value}\n`);
+    write(`${CLEAR_PREV_LINE}${formatAnswer(message, value)}`);
     return value;
   }
 }
@@ -197,19 +223,16 @@ export async function password(opts: PasswordOptions): Promise<string> {
   const { stdin } = getStdio();
 
   return new Promise<string>((resolve, reject) => {
-    write(`${cyan("?")} ${bold(message)}\n`);
+    write(`${formatQuestion(message)}\n`);
     write(`${cyan("❯")} `);
 
-    const wasRaw = stdin.isRaw ?? false;
-    stdin.setRawMode?.(true);
-    stdin.resume?.();
+    const restoreMode = enterRawMode(stdin);
 
     let value = "";
 
     const cleanup = () => {
       stdin.off("data", onData);
-      stdin.setRawMode?.(wasRaw);
-      stdin.pause?.();
+      restoreMode();
     };
 
     const onData = (data: Buffer | string) => {
@@ -230,9 +253,7 @@ export async function password(opts: PasswordOptions): Promise<string> {
             }
           }
           cleanup();
-          write(
-            `\n\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${mask.repeat(value.length)}\n`,
-          );
+          write(`\n${CLEAR_PREV_LINE}${formatAnswer(message, mask.repeat(value.length))}`);
           resolve(value);
           return;
         }
@@ -276,13 +297,13 @@ export async function confirm(opts: ConfirmOptions): Promise<boolean> {
   const defaultVal = opts.default ?? false;
   const hint = defaultVal ? dim("(Y/n)") : dim("(y/N)");
 
-  write(`${cyan("?")} ${bold(message)} ${hint} `);
+  write(`${formatQuestion(message)} ${hint} `);
   const input = await readLineRaw();
   const val = input.trim().toLowerCase();
   const result = val === "" ? defaultVal : val === "y" || val === "yes";
   const display = result ? green("Yes") : red("No");
   clearLine();
-  write(`\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${display}\n`);
+  write(`${CLEAR_PREV_LINE}${formatAnswer(message, display)}`);
   return result;
 }
 
@@ -330,10 +351,7 @@ function renderMenu(
   hint: string | null,
 ): string {
   const lines: string[] = [];
-  const head = hint
-    ? `${cyan("?")} ${bold(message)} ${dim(hint)}`
-    : `${cyan("?")} ${bold(message)}`;
-  lines.push(head);
+  lines.push(hint ? `${formatQuestion(message)} ${dim(hint)}` : formatQuestion(message));
   for (let i = 0; i < options.length; i++) {
     const opt = options[i]!;
     const active = i === cursor;
@@ -349,6 +367,48 @@ function renderMenu(
   return lines.join("\n");
 }
 
+/**
+ * A stateful painter for the interactive menu used by `select` and
+ * `multiselect`. It tracks how many lines were last emitted so each repaint
+ * can rewind the cursor and overwrite cleanly, and exposes `replaceWith` to
+ * swap the menu for a final one-line summary.
+ */
+function createMenuPainter() {
+  let firstPaint = true;
+  let lastLineCount = 0;
+
+  return {
+    paint(body: string): void {
+      const lines = body.split("\n");
+      if (!firstPaint) write(`\x1b[${lastLineCount}A`);
+      firstPaint = false;
+      for (const line of lines) write(`\r\x1b[K${line}\n`);
+      lastLineCount = lines.length;
+    },
+    /** Clear the prior menu and emit a single summary line in its place. */
+    replaceWith(summary: string): void {
+      write(`\x1b[${lastLineCount}A`);
+      for (let i = 0; i < lastLineCount; i++) write("\r\x1b[K\n");
+      write(`\x1b[${lastLineCount}A`);
+      write(summary);
+    },
+  };
+}
+
+/**
+ * Step the cursor in `direction` (+1 / -1), skipping disabled options and
+ * wrapping at the ends. Returns the new index. Callers are expected to have
+ * an initial cursor that is already on an enabled option.
+ */
+function moveCursor(options: SelectOption<unknown>[], cursor: number, direction: 1 | -1): number {
+  const n = options.length;
+  let next = cursor;
+  do {
+    next = (next + direction + n) % n;
+  } while (options[next]?.disabled && next !== cursor);
+  return next;
+}
+
 export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
   requireTTY();
   const { message, options } = opts;
@@ -358,41 +418,21 @@ export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
   while (options[cursor]?.disabled && cursor < options.length - 1) cursor++;
 
   const { stdin } = getStdio();
+  const erasedOptions = options as SelectOption<unknown>[];
 
   return new Promise<T>((resolve, reject) => {
-    const wasRaw = stdin.isRaw ?? false;
-    stdin.setRawMode?.(true);
-    stdin.resume?.();
+    const restoreMode = enterRawMode(stdin);
+    const painter = createMenuPainter();
 
-    let firstPaint = true;
-    let lastLineCount = 0;
-
-    const paint = () => {
-      const body = renderMenu(
-        message,
-        options as SelectOption<unknown>[],
-        cursor,
-        null,
-        null,
-        null,
-      );
-      const nextLineCount = body.split("\n").length;
-      if (!firstPaint) {
-        write(`\x1b[${lastLineCount}A`);
-      }
-      firstPaint = false;
-      // Clear each line as we re-emit.
-      const lines = body.split("\n");
-      for (const line of lines) write(`\r\x1b[K${line}\n`);
-      lastLineCount = nextLineCount;
+    const repaint = () => {
+      painter.paint(renderMenu(message, erasedOptions, cursor, null, null, null));
     };
 
-    paint();
+    repaint();
 
     const cleanup = () => {
       stdin.off("data", onData);
-      stdin.setRawMode?.(wasRaw);
-      stdin.pause?.();
+      restoreMode();
     };
 
     const onData = (data: Buffer | string) => {
@@ -400,22 +440,14 @@ export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
       const k = decodeKey(s);
 
       if (k.up) {
-        do {
-          cursor = (cursor - 1 + options.length) % options.length;
-        } while (options[cursor]?.disabled);
-        paint();
+        cursor = moveCursor(erasedOptions, cursor, -1);
+        repaint();
       } else if (k.down) {
-        do {
-          cursor = (cursor + 1) % options.length;
-        } while (options[cursor]?.disabled);
-        paint();
+        cursor = moveCursor(erasedOptions, cursor, 1);
+        repaint();
       } else if (k.enter) {
         cleanup();
-        // Replace the menu with the final summary.
-        write(`\x1b[${lastLineCount}A`);
-        for (let i = 0; i < lastLineCount; i++) write("\r\x1b[K\n");
-        write(`\x1b[${lastLineCount}A`);
-        write(`${green("✔")} ${bold(message)} ${dim("·")} ${options[cursor]!.label}\n`);
+        painter.replaceWith(formatAnswer(message, options[cursor]!.label));
         resolve(options[cursor]!.value);
       } else if (k.ctrlC) {
         cleanup();
@@ -456,37 +488,30 @@ export async function multiselect<T = string>(opts: MultiSelectOptions<T>): Prom
   }
 
   const { stdin } = getStdio();
+  const erasedOptions = options as SelectOption<unknown>[];
 
   return new Promise<T[]>((resolve, reject) => {
-    const wasRaw = stdin.isRaw ?? false;
-    stdin.setRawMode?.(true);
-    stdin.resume?.();
+    const restoreMode = enterRawMode(stdin);
+    const painter = createMenuPainter();
 
-    let firstPaint = true;
-    let lastLineCount = 0;
-
-    const paint = () => {
-      const body = renderMenu(
-        message,
-        options as SelectOption<unknown>[],
-        cursor,
-        selected,
-        errorMessage,
-        "(space to toggle, a to toggle all, enter to confirm)",
+    const repaint = () => {
+      painter.paint(
+        renderMenu(
+          message,
+          erasedOptions,
+          cursor,
+          selected,
+          errorMessage,
+          "(space to toggle, a to toggle all, enter to confirm)",
+        ),
       );
-      const nextLineCount = body.split("\n").length;
-      if (!firstPaint) write(`\x1b[${lastLineCount}A`);
-      firstPaint = false;
-      for (const line of body.split("\n")) write(`\r\x1b[K${line}\n`);
-      lastLineCount = nextLineCount;
     };
 
-    paint();
+    repaint();
 
     const cleanup = () => {
       stdin.off("data", onData);
-      stdin.setRawMode?.(wasRaw);
-      stdin.pause?.();
+      restoreMode();
     };
 
     const onData = (data: Buffer | string) => {
@@ -494,17 +519,13 @@ export async function multiselect<T = string>(opts: MultiSelectOptions<T>): Prom
       const k = decodeKey(s);
 
       if (k.up) {
-        do {
-          cursor = (cursor - 1 + options.length) % options.length;
-        } while (options[cursor]?.disabled);
+        cursor = moveCursor(erasedOptions, cursor, -1);
         errorMessage = null;
-        paint();
+        repaint();
       } else if (k.down) {
-        do {
-          cursor = (cursor + 1) % options.length;
-        } while (options[cursor]?.disabled);
+        cursor = moveCursor(erasedOptions, cursor, 1);
         errorMessage = null;
-        paint();
+        repaint();
       } else if (k.space) {
         if (!options[cursor]?.disabled) {
           if (selected.has(cursor)) {
@@ -515,7 +536,7 @@ export async function multiselect<T = string>(opts: MultiSelectOptions<T>): Prom
             errorMessage = `Maximum ${max} selections allowed`;
           }
         }
-        paint();
+        repaint();
       } else if (k.toggleAll) {
         const allEnabled = options.filter((o) => !o.disabled);
         if (selected.size === allEnabled.length) {
@@ -526,24 +547,21 @@ export async function multiselect<T = string>(opts: MultiSelectOptions<T>): Prom
           }
         }
         errorMessage = null;
-        paint();
+        repaint();
       } else if (k.enter) {
         if (min !== undefined && selected.size < min) {
           errorMessage = `Select at least ${min}`;
-          paint();
+          repaint();
           return;
         }
         if (opts.required && selected.size === 0) {
           errorMessage = "Select at least 1";
-          paint();
+          repaint();
           return;
         }
         cleanup();
-        write(`\x1b[${lastLineCount}A`);
-        for (let i = 0; i < lastLineCount; i++) write("\r\x1b[K\n");
-        write(`\x1b[${lastLineCount}A`);
         const labels = [...selected].map((i) => options[i]!.label).join(", ");
-        write(`${green("✔")} ${bold(message)} ${dim("·")} ${labels}\n`);
+        painter.replaceWith(formatAnswer(message, labels));
         resolve([...selected].map((i) => options[i]!.value));
       } else if (k.ctrlC) {
         cleanup();

@@ -270,7 +270,9 @@ const CURSOR_HIDE = "\x1b[?25l";
 const CURSOR_SHOW = "\x1b[?25h";
 
 function isStreamTTY(stream: NodeJS.WritableStream): boolean {
-  return !!(stream as { isTTY?: boolean }).isTTY;
+  // `tty.WriteStream` exposes `isTTY`, but the base `WritableStream` type
+  // does not — probe defensively without an unchecked structural cast.
+  return "isTTY" in stream && stream.isTTY === true;
 }
 
 export function createSpinner(opts: SpinnerOptions = {}) {

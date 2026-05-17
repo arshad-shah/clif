@@ -2,7 +2,7 @@
  * clif/utils — Shared utility functions.
  */
 
-import { visibleLength } from "../core/colors.js";
+import { makeAnsiRegex, visibleLength } from "../core/colors.js";
 
 /** Check if stdout is a TTY */
 export function isTTY(): boolean {
@@ -14,19 +14,17 @@ export function terminalWidth(): number {
   return process.stdout?.columns ?? 80;
 }
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC byte (0x1b) starts every ANSI escape we need to scan for.
-const ANSI_RE_LOCAL = /\x1b\[[0-9;]*m/g;
-
 /** Truncate a string to a max VISIBLE width with ellipsis (ANSI-aware). */
 export function truncate(text: string, max: number, suffix = "…"): string {
   if (visibleLength(text) <= max) return text;
   const limit = Math.max(0, max - suffix.length);
+  const ansi = makeAnsiRegex();
   let visible = 0;
   let out = "";
   let i = 0;
   while (i < text.length && visible < limit) {
-    ANSI_RE_LOCAL.lastIndex = i;
-    const m = ANSI_RE_LOCAL.exec(text);
+    ansi.lastIndex = i;
+    const m = ansi.exec(text);
     if (m && m.index === i) {
       out += m[0];
       i = m.index + m[0].length;
@@ -37,11 +35,11 @@ export function truncate(text: string, max: number, suffix = "…"): string {
     i++;
   }
   // Append any remaining trailing ANSI close codes so styling terminates cleanly.
-  ANSI_RE_LOCAL.lastIndex = i;
-  let m: RegExpExecArray | null = ANSI_RE_LOCAL.exec(text);
+  ansi.lastIndex = i;
+  let m: RegExpExecArray | null = ansi.exec(text);
   while (m) {
     out += m[0];
-    m = ANSI_RE_LOCAL.exec(text);
+    m = ansi.exec(text);
   }
   return out + suffix;
 }

@@ -195,8 +195,17 @@ export function compose(...formatters: Formatter[]): Formatter {
 
 // ── Strip ANSI ──────────────────────────────────────────────────────────────
 
+/**
+ * Build a fresh global RegExp that matches a single ANSI SGR escape sequence.
+ *
+ * A factory (rather than a shared instance) is exposed because `.exec()` on a
+ * `/g` regex carries `lastIndex` state — sharing one instance across modules
+ * would invite subtle cross-call bugs.
+ */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: ESC (0x1b) is the leading byte of every ANSI escape sequence we want to strip.
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
+export const makeAnsiRegex = (): RegExp => /\x1b\[[0-9;]*m/g;
+
+const ANSI_RE = makeAnsiRegex();
 
 /** Remove all ANSI escape sequences from a string */
 export function stripAnsi(text: string): string {

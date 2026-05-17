@@ -15,7 +15,7 @@
     "format": "biome format --write . && prettier --write \"**/*.{md,mdx,yaml,yml,css,astro}\"",
     "format:check": "biome format . && prettier --check \"**/*.{md,mdx,yaml,yml,css,astro}\"",
     "changeset": "changeset",
-    "version-packages": "changeset version",
+    "version-packages": "changeset version && pnpm format",
     "release": "pnpm build && changeset publish"
   },
   "engines": {
