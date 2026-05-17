@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Set up Node ${{ matrix.node }}
         uses: actions/setup-node@v4
@@ -80,7 +80,7 @@ jobs:
     # Audit doesn't need a matrix — one canonical Node version is enough.
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 24
