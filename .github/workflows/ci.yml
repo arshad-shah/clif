@@ -48,14 +48,18 @@ jobs:
       - name: Format check (Biome + Prettier)
         run: pnpm format:check
 
+      # Build clif BEFORE typecheck: the example package imports `clif`
+      # via the workspace symlink, and clif's exports/types point at
+      # `./dist/*` — without a fresh build, tsc reports
+      # `Cannot find module 'clif'` in the example.
+      - name: Build clif
+        run: pnpm build
+
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Test (with coverage)
         run: pnpm test:coverage
-
-      - name: Build clif
-        run: pnpm build
 
       - name: Build docs
         run: pnpm docs:build
