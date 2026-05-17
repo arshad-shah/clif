@@ -19,9 +19,8 @@ jobs:
     name: changesets — version or publish
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Requires the `npm-publish` GitHub Environment to exist. Configure it
-    # with required reviewers so a human approves every publish. See
-    # .github/REPO_SETUP.md for the one-time setup.
+    # Requires the `npm-publish` GitHub Environment to exist with required
+    # reviewers, so a human approves every publish.
     environment: npm-publish
 
     steps:
