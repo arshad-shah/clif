@@ -3,3 +3,7 @@ packages:
 allowBuilds:
   "@biomejs/biome": true
   esbuild: true
+  # sharp is pulled in transitively by Astro's optionalDependencies even
+  # though we use the noop image service. Allow its postinstall so pnpm 11
+  # doesn't ERR_PNPM_IGNORED_BUILDS in CI.
+  sharp: true
