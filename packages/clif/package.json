@@ -38,7 +38,11 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "pnpm run build && pnpm run test"
+    "exports:smoke": "node ../../scripts/smoke-exports.mjs",
+    "publint": "publint",
+    "size": "node ../../scripts/check-size.mjs",
+    "validate": "pnpm run build && pnpm run publint && pnpm run exports:smoke && pnpm run size",
+    "prepublishOnly": "pnpm run build && pnpm run test && pnpm run publint && pnpm run exports:smoke"
   },
   "keywords": [
     "cli",
@@ -65,13 +69,14 @@
   "bugs": {
     "url": "https://github.com/arshad-shah/clif/issues"
   },
-  "homepage": "https://github.com/arshad-shah/clif#readme",
+  "homepage": "https://clif.arshadshah.com",
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "publint": "^0.3.0",
     "tsdown": "^0.20.3",
     "typescript": "^5.8.0",
     "vitest": "^4.1.6"

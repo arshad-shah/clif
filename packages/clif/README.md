@@ -1,5 +1,13 @@
 # clif
 
+[![CI](https://github.com/arshad-shah/clif/actions/workflows/ci.yml/badge.svg)](https://github.com/arshad-shah/clif/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/clif?logo=npm)](https://www.npmjs.com/package/clif)
+[![npm downloads](https://img.shields.io/npm/dm/clif?logo=npm&color=cb3837)](https://www.npmjs.com/package/clif)
+[![bundle size](https://img.shields.io/bundlejs/size/clif?label=bundle&color=f5c76a)](https://bundlejs.com/?q=clif)
+[![License: MIT](https://img.shields.io/npm/l/clif?color=blue)](../../LICENSE)
+[![types: included](https://img.shields.io/npm/types/clif?logo=typescript)](./src)
+[![provenance](https://img.shields.io/badge/npm-provenance-2bbc8a?logo=npm)](https://docs.npmjs.com/generating-provenance-statements)
+
 > Tiny, zero-dependency CLI framework with beautiful output and a composable API.
 
 `clif` replaces `commander`, `chalk`, `inquirer`, `ora`, and `cli-table3` in a
@@ -46,8 +54,8 @@ cli.run();
 
 ## Documentation
 
-Full docs at [the docs site](https://github.com/arshad-shah/clif) — guides for
-every component, the prompts API, and the command system.
+Full docs at **[clif.arshadshah.com](https://clif.arshadshah.com)** — guides
+for every component, the prompts API, and the command system.
 
 ## License
 

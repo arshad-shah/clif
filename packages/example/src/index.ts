@@ -37,7 +37,9 @@ const demo: CommandDef = {
     makeDemoCommand("progress", "Progress bar tick-to-complete", d.demoProgress),
     makeDemoCommand("all", "Run every renderer demo back-to-back", d.demoAll),
   ],
-  handler: () => log.info("pick a subcommand — try `kit demo all` or `kit demo --help`"),
+  handler: () => {
+    log.info("pick a subcommand — try `kit demo all` or `kit demo --help`");
+  },
 };
 
 const prompt: CommandDef = {
@@ -52,7 +54,9 @@ const prompt: CommandDef = {
     makeDemoCommand("number", "Numeric prompt with min/max", p.promptNumber),
     makeDemoCommand("all", "group() composing every prompt type", p.promptGroup),
   ],
-  handler: () => log.info("pick a subcommand — try `kit prompt all` or `kit prompt --help`"),
+  handler: () => {
+    log.info("pick a subcommand — try `kit prompt all` or `kit prompt --help`");
+  },
 };
 
 /**

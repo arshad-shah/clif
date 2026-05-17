@@ -2,6 +2,7 @@ import starlight from "@astrojs/starlight";
 import { defineConfig } from "astro/config";
 
 export default defineConfig({
+  site: "https://clif.arshadshah.com",
   output: "static",
   image: {
     service: { entrypoint: "astro/assets/services/noop" },
