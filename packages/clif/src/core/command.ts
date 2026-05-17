@@ -79,6 +79,34 @@ function userDefinesFlag(cmd: CommandDef, name: string): boolean {
   return !!cmd.args && Object.prototype.hasOwnProperty.call(cmd.args, name);
 }
 
+/**
+ * Augment a command's args with the implicit `--help` / `--version` flags.
+ *
+ * `--version` is only added when the root advertises a version, and the
+ * conventional `-h` / `-v` aliases are only bound when the user hasn't
+ * claimed those short flags for something else.
+ */
+function buildMergedArgs(command: CommandDef, root: CommandDef): Record<string, ArgDef> {
+  const merged: Record<string, ArgDef> = { ...(command.args ?? {}) };
+  if (!userDefinesFlag(command, "help")) {
+    merged.help = {
+      type: "boolean",
+      description: "Show this help message",
+      ...(userDefinesAlias(command, RESERVED_HELP_ALIAS) ? {} : { alias: RESERVED_HELP_ALIAS }),
+    };
+  }
+  if (root.version && !userDefinesFlag(command, "version")) {
+    merged.version = {
+      type: "boolean",
+      description: "Print the version",
+      ...(userDefinesAlias(command, RESERVED_VERSION_ALIAS)
+        ? {}
+        : { alias: RESERVED_VERSION_ALIAS }),
+    };
+  }
+  return merged;
+}
+
 async function runCommand(root: CommandDef, opts?: RunOptions): Promise<void> {
   const argv = opts?.argv ?? process.argv.slice(2);
 
@@ -102,28 +130,7 @@ async function runCommand(root: CommandDef, opts?: RunOptions): Promise<void> {
       );
     }
 
-    // Merge user-defined args with implicit --help / --version so they
-    // show up in help output AND can be safely aliased to -h / -v
-    // unless the user has bound those aliases themselves.
-    const mergedArgs: Record<string, ArgDef> = { ...(command.args ?? {}) };
-    if (!userDefinesFlag(command, "help")) {
-      mergedArgs.help = {
-        type: "boolean",
-        description: "Show this help message",
-        ...(userDefinesAlias(command, RESERVED_HELP_ALIAS) ? {} : { alias: RESERVED_HELP_ALIAS }),
-      };
-    }
-    if (root.version && !userDefinesFlag(command, "version")) {
-      mergedArgs.version = {
-        type: "boolean",
-        description: "Print the version",
-        ...(userDefinesAlias(command, RESERVED_VERSION_ALIAS)
-          ? {}
-          : { alias: RESERVED_VERSION_ALIAS }),
-      };
-    }
-
-    const args = parseArgs(mergedArgs, {
+    const args = parseArgs(buildMergedArgs(command, root), {
       args: remaining,
       allowUnknown: false,
     });
@@ -220,24 +227,7 @@ function printHelp(command: CommandDef, root: CommandDef, parents: CommandDef[])
     }
   }
 
-  // Merge user-defined args with the implicit --help / --version so help shows them.
-  const allArgs: Record<string, ArgDef> = { ...(command.args ?? {}) };
-  if (!userDefinesFlag(command, "help")) {
-    allArgs.help = {
-      type: "boolean",
-      description: "Show this help message",
-      ...(userDefinesAlias(command, RESERVED_HELP_ALIAS) ? {} : { alias: RESERVED_HELP_ALIAS }),
-    };
-  }
-  if (root.version && !userDefinesFlag(command, "version")) {
-    allArgs.version = {
-      type: "boolean",
-      description: "Print the version",
-      ...(userDefinesAlias(command, RESERVED_VERSION_ALIAS)
-        ? {}
-        : { alias: RESERVED_VERSION_ALIAS }),
-    };
-  }
+  const allArgs = buildMergedArgs(command, root);
 
   if (Object.keys(allArgs).length > 0) {
     lines.push("", "Options:");
