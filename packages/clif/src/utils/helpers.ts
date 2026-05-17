@@ -2,6 +2,8 @@
  * clif/utils — Shared utility functions.
  */
 
+import { visibleLength } from "../core/colors.js";
+
 /** Check if stdout is a TTY */
 export function isTTY(): boolean {
   return typeof process !== "undefined" && !!process.stdout?.isTTY;
@@ -12,24 +14,56 @@ export function terminalWidth(): number {
   return process.stdout?.columns ?? 80;
 }
 
-/** Truncate a string to a max length with ellipsis */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC byte (0x1b) starts every ANSI escape we need to scan for.
+const ANSI_RE_LOCAL = /\x1b\[[0-9;]*m/g;
+
+/** Truncate a string to a max VISIBLE width with ellipsis (ANSI-aware). */
 export function truncate(text: string, max: number, suffix = "…"): string {
-  if (text.length <= max) return text;
-  return text.slice(0, max - suffix.length) + suffix;
+  if (visibleLength(text) <= max) return text;
+  const limit = Math.max(0, max - suffix.length);
+  let visible = 0;
+  let out = "";
+  let i = 0;
+  while (i < text.length && visible < limit) {
+    ANSI_RE_LOCAL.lastIndex = i;
+    const m = ANSI_RE_LOCAL.exec(text);
+    if (m && m.index === i) {
+      out += m[0];
+      i = m.index + m[0].length;
+      continue;
+    }
+    out += text[i];
+    visible++;
+    i++;
+  }
+  // Append any remaining trailing ANSI close codes so styling terminates cleanly.
+  ANSI_RE_LOCAL.lastIndex = i;
+  let m: RegExpExecArray | null = ANSI_RE_LOCAL.exec(text);
+  while (m) {
+    out += m[0];
+    m = ANSI_RE_LOCAL.exec(text);
+  }
+  return out + suffix;
 }
 
-/** Wrap text to a given width */
+/** Wrap text to a given VISIBLE width, ignoring ANSI escape codes. */
 export function wordWrap(text: string, width: number): string {
+  if (text.length === 0) return "";
   const words = text.split(" ");
   const lines: string[] = [];
   let current = "";
+  let currentVisible = 0;
 
   for (const word of words) {
-    if (current.length + word.length + 1 > width) {
-      lines.push(current);
+    const wv = visibleLength(word);
+    const sep = current ? 1 : 0;
+    if (currentVisible + wv + sep > width) {
+      if (current) lines.push(current);
       current = word;
+      currentVisible = wv;
     } else {
       current = current ? `${current} ${word}` : word;
+      currentVisible += wv + sep;
     }
   }
   if (current) lines.push(current);
@@ -64,16 +98,19 @@ export function dedent(str: string): string {
   return lines.map((line) => line.slice(minIndent)).join("\n");
 }
 
-/** Format bytes to human-readable */
+/** Format bytes to human-readable. Accepts negatives and renders with a leading sign. */
 export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes)) return String(bytes);
+  const negative = bytes < 0;
+  let size = Math.abs(bytes);
   const units = ["B", "KB", "MB", "GB", "TB"];
-  let size = bytes;
   let unitIdx = 0;
   while (size >= 1024 && unitIdx < units.length - 1) {
     size /= 1024;
     unitIdx++;
   }
-  return `${size.toFixed(unitIdx === 0 ? 0 : 1)} ${units[unitIdx]}`;
+  const sign = negative ? "-" : "";
+  return `${sign}${size.toFixed(unitIdx === 0 ? 0 : 1)} ${units[unitIdx]}`;
 }
 
 /** Format milliseconds to human-readable */

@@ -146,6 +146,41 @@ describe("formatBytes", () => {
 
 // ── formatDuration ──────────────────────────────────────────────────────────
 
+describe("truncate (B8) — ANSI-aware", () => {
+  it("counts visible width, not raw byte length", () => {
+    const styled = "\x1b[31mhello world\x1b[39m";
+    const result = truncate(styled, 7);
+    // visible portion should be 6 chars + ellipsis
+    expect(result).toContain("hello ");
+    expect(result).toContain("…");
+    // and styling should be preserved
+    expect(result).toContain("\x1b[31m");
+  });
+
+  it("returns text unchanged when visible length is within max even with ANSI", () => {
+    const styled = "\x1b[31mhi\x1b[39m";
+    expect(truncate(styled, 5)).toBe(styled);
+  });
+});
+
+describe("wordWrap (B8) — ANSI-aware", () => {
+  it("wraps based on visible width, ignoring ANSI escapes", () => {
+    const styled = "\x1b[31mhello\x1b[39m world foo";
+    const result = wordWrap(styled, 11);
+    const lines = result.split("\n");
+    // First line should contain hello + world (visible 11)
+    expect(lines[0]).toContain("hello");
+    expect(lines[0]).toContain("world");
+    expect(lines[1]).toContain("foo");
+  });
+});
+
+describe("formatBytes edge cases (B18)", () => {
+  it("handles negative numbers without infinite-looping", () => {
+    expect(formatBytes(-512)).toBe("-512 B");
+  });
+});
+
 describe("formatDuration", () => {
   it("formats milliseconds", () => {
     expect(formatDuration(250)).toBe("250ms");

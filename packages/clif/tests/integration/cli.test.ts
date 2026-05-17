@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { colorLevel } from "../../src/core/colors.js";
-import { createCLI } from "../../src/core/command.js";
+import { createCLI, defineCommand } from "../../src/core/command.js";
 
 beforeEach(() => colorLevel(0)); // Disable colors for clean output
 afterEach(() => colorLevel(1));
@@ -207,6 +207,7 @@ describe("createCLI integration", () => {
     let raw: string[] = [];
     const cli = createCLI({
       name: "app",
+      args: { foo: { type: "string" } },
       handler: (ctx) => {
         raw = ctx.rawArgs;
       },
@@ -214,5 +215,142 @@ describe("createCLI integration", () => {
 
     await cli.run({ argv: ["--foo", "bar"] });
     expect(raw).toEqual(["--foo", "bar"]);
+  });
+
+  describe("help/version aliases (B3)", () => {
+    it("prints help on -h", async () => {
+      const spy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+      const cli = createCLI({ name: "myapp", description: "App" });
+      await cli.run({ argv: ["-h"] });
+      const output = spy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("App");
+      spy.mockRestore();
+    });
+
+    it("prints version on -v", async () => {
+      const spy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+      const cli = createCLI({ name: "myapp", version: "1.2.3" });
+      await cli.run({ argv: ["-v"] });
+      const output = spy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("1.2.3");
+      spy.mockRestore();
+    });
+
+    it("does NOT shadow user-defined -v on a flag with same alias", async () => {
+      let received: unknown;
+      const cli = createCLI({
+        name: "myapp",
+        version: "1.0.0",
+        args: { verbose: { type: "boolean", alias: "v" } },
+        handler: (ctx) => {
+          received = ctx.args.flags.verbose;
+        },
+      });
+      await cli.run({ argv: ["-v"] });
+      expect(received).toBe(true);
+    });
+
+    it("lists --help and --version in help output", async () => {
+      const spy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+      const cli = createCLI({ name: "myapp", version: "1.0.0" });
+      await cli.run({ argv: ["--help"] });
+      const output = spy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("--help");
+      expect(output).toContain("--version");
+      spy.mockRestore();
+    });
+  });
+
+  describe("unknown subcommand (B4)", () => {
+    it("errors when an unknown subcommand is given", async () => {
+      const onError = vi.fn();
+      const cli = createCLI({
+        name: "git",
+        commands: [{ name: "add", handler: () => {} }],
+      });
+      await cli.run({ argv: ["buidl"], onError });
+      expect(onError).toHaveBeenCalled();
+      expect(onError.mock.calls[0]![0].message).toMatch(/Unknown command: buidl/);
+    });
+
+    it("suggests close matches via did-you-mean", async () => {
+      const onError = vi.fn();
+      const cli = createCLI({
+        name: "git",
+        commands: [
+          { name: "build", handler: () => {} },
+          { name: "clean", handler: () => {} },
+        ],
+      });
+      await cli.run({ argv: ["buidl"], onError });
+      expect(onError.mock.calls[0]![0].message).toMatch(/build/);
+    });
+
+    it("does not error when first positional is consumed and root has handler", async () => {
+      const handler = vi.fn();
+      const cli = createCLI({ name: "app", handler });
+      await cli.run({ argv: ["somefile.txt"] });
+      expect(handler).toHaveBeenCalled();
+    });
+  });
+
+  describe("parent chain in context (S2)", () => {
+    it("exposes ancestors via ctx.parents", async () => {
+      let parents: string[] = [];
+      const cli = createCLI({
+        name: "tool",
+        commands: [
+          {
+            name: "config",
+            commands: [
+              {
+                name: "set",
+                handler: (ctx) => {
+                  parents = ctx.parents.map((p) => p.name);
+                },
+              },
+            ],
+          },
+        ],
+      });
+      await cli.run({ argv: ["config", "set"] });
+      expect(parents).toEqual(["tool", "config"]);
+    });
+  });
+
+  describe("defineCommand helper (S4)", () => {
+    it("returns the command definition unchanged for type inference", () => {
+      const cmd = defineCommand({ name: "x", handler: () => {} });
+      expect(cmd.name).toBe("x");
+    });
+  });
+
+  describe("error formatting", () => {
+    it("formats ArgError with a friendly prefix", async () => {
+      const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      const cli = createCLI({
+        name: "app",
+        args: { port: { type: "number" } },
+      });
+      await cli.run({ argv: ["--port", "abc"] });
+      const output = spy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toMatch(/Expected number.*--port/);
+      spy.mockRestore();
+    });
+
+    it("sets process.exitCode to 1 on unhandled error", async () => {
+      const prev = process.exitCode;
+      const spy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      const cli = createCLI({
+        name: "app",
+        handler: () => {
+          throw new Error("boom");
+        },
+      });
+      await cli.run({ argv: [] });
+      expect(process.exitCode).toBe(1);
+      process.exitCode = prev;
+      spy.mockRestore();
+    });
   });
 });

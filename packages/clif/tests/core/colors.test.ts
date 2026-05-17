@@ -244,6 +244,17 @@ describe("colors", () => {
       colorLevel(3);
       expect(bgHex("#0000ff")("hello")).toBe("\x1b[48;2;0;0;255mhello\x1b[49m");
     });
+
+    it("throws on invalid hex strings (B9)", () => {
+      expect(() => hex("xyz")).toThrow(/hex/i);
+      expect(() => hex("#zzzzzz")).toThrow(/hex/i);
+      expect(() => hex("#fff")).toThrow(/hex/i); // we require 6 digits
+      expect(() => bgHex("not-a-hex")).toThrow(/hex/i);
+    });
+
+    it("throws on null/undefined hex inputs (B9)", () => {
+      expect(() => hex(undefined as unknown as string)).toThrow();
+    });
   });
 
   describe("compose", () => {

@@ -141,21 +141,34 @@ export function bgRgb(r: number, g: number, b: number): Formatter {
   };
 }
 
-/** Hex foreground (#ff0000 or ff0000) */
-export function hex(color: string): Formatter {
+const HEX6_RE = /^[0-9a-fA-F]{6}$/;
+
+function parseHex(color: string): [number, number, number] {
+  if (typeof color !== "string") {
+    throw new TypeError(`hex: expected a string, got ${typeof color}`);
+  }
   const c = color.startsWith("#") ? color.slice(1) : color;
-  const r = Number.parseInt(c.slice(0, 2), 16);
-  const g = Number.parseInt(c.slice(2, 4), 16);
-  const b = Number.parseInt(c.slice(4, 6), 16);
+  if (!HEX6_RE.test(c)) {
+    throw new RangeError(
+      `hex: expected a 6-digit hex color (e.g. "#ff0000" or "ff0000"), got "${color}"`,
+    );
+  }
+  return [
+    Number.parseInt(c.slice(0, 2), 16),
+    Number.parseInt(c.slice(2, 4), 16),
+    Number.parseInt(c.slice(4, 6), 16),
+  ];
+}
+
+/** Hex foreground (#ff0000 or ff0000). Throws on invalid input. */
+export function hex(color: string): Formatter {
+  const [r, g, b] = parseHex(color);
   return rgb(r, g, b);
 }
 
-/** Hex background */
+/** Hex background. Throws on invalid input. */
 export function bgHex(color: string): Formatter {
-  const c = color.startsWith("#") ? color.slice(1) : color;
-  const r = Number.parseInt(c.slice(0, 2), 16);
-  const g = Number.parseInt(c.slice(2, 4), 16);
-  const b = Number.parseInt(c.slice(4, 6), 16);
+  const [r, g, b] = parseHex(color);
   return bgRgb(r, g, b);
 }
 

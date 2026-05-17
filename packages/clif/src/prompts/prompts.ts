@@ -3,27 +3,144 @@
  *
  * Zero-dependency, raw stdin-based prompts.
  * Each prompt is a standalone async function.
+ *
+ * Errors:
+ *  - User cancellation (Ctrl+C) rejects with a `PromptError` whose `code` is `"cancelled"`.
+ *  - Running a prompt without a TTY rejects with code `"not-a-tty"`.
+ *  - Validation errors stay inside the prompt; the user is re-prompted.
  */
 
-import * as readline from "node:readline";
 import { bold, cyan, dim, green, red } from "../core/colors.js";
+
+// ── Error type ──────────────────────────────────────────────────────────────
+
+export type PromptErrorCode = "cancelled" | "not-a-tty";
+
+export class PromptError extends Error {
+  readonly code: PromptErrorCode;
+  constructor(code: PromptErrorCode, message?: string) {
+    super(message ?? code);
+    this.name = "PromptError";
+    this.code = code;
+  }
+}
+
+// ── Injectable stdio (used by tests) ────────────────────────────────────────
+
+interface StdinLike extends NodeJS.EventEmitter {
+  isTTY?: boolean;
+  isRaw?: boolean;
+  setRawMode?(b: boolean): unknown;
+  resume?(): unknown;
+  pause?(): unknown;
+}
+
+interface StdoutLike {
+  write(s: string): unknown;
+  isTTY?: boolean;
+}
+
+interface Stdio {
+  stdin: StdinLike;
+  stderr: StdoutLike;
+}
+
+let stdio: Stdio | null = null;
+
+function getStdio(): Stdio {
+  return stdio ?? { stdin: process.stdin, stderr: process.stderr };
+}
+
+/** Test-only escape hatch. Not part of the public API. */
+export const __testing = {
+  setStdio(s: Stdio): void {
+    stdio = s;
+  },
+  resetStdio(): void {
+    stdio = null;
+  },
+};
+
+function requireTTY(): void {
+  const { stdin } = getStdio();
+  if (!stdin.isTTY) {
+    throw new PromptError(
+      "not-a-tty",
+      "Cannot run interactive prompt: stdin is not a TTY. Pipe input or run in an interactive terminal.",
+    );
+  }
+}
 
 // ── Shared utilities ────────────────────────────────────────────────────────
 
-function createInterface(): readline.Interface {
-  return readline.createInterface({
-    input: process.stdin,
-    output: process.stderr,
-    terminal: true,
-  });
-}
-
 function write(text: string): void {
-  process.stderr.write(text);
+  getStdio().stderr.write(text);
 }
 
 function clearLine(): void {
   write("\r\x1b[K");
+}
+
+/**
+ * Read a single line of input character-by-character via raw stdin.
+ * Returns the user's input on Enter, or rejects with PromptError on Ctrl+C.
+ *
+ * Used by `text` and `confirm` instead of node:readline so prompts behave
+ * uniformly under raw mode (and so the test stdio can drive them).
+ */
+function readLineRaw(): Promise<string> {
+  const { stdin } = getStdio();
+  return new Promise<string>((resolve, reject) => {
+    const wasRaw = stdin.isRaw ?? false;
+    stdin.setRawMode?.(true);
+    stdin.resume?.();
+    let buffer = "";
+
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.off("line", onLine);
+      stdin.setRawMode?.(wasRaw);
+      stdin.pause?.();
+    };
+
+    // Test stdio emits "line" directly; honor it as a fast path.
+    const onLine = (line: string) => {
+      cleanup();
+      resolve(line);
+    };
+
+    const onData = (data: Buffer | string) => {
+      const chunk = typeof data === "string" ? data : data.toString();
+      for (let i = 0; i < chunk.length; i++) {
+        const ch = chunk[i]!;
+        if (ch === "\r" || ch === "\n") {
+          cleanup();
+          write("\n");
+          resolve(buffer);
+          return;
+        }
+        if (ch === "\x03") {
+          cleanup();
+          write("\n");
+          reject(new PromptError("cancelled"));
+          return;
+        }
+        if (ch === "\x7f" || ch === "\b") {
+          if (buffer.length > 0) {
+            buffer = buffer.slice(0, -1);
+            write("\b \b");
+          }
+          continue;
+        }
+        if (ch.charCodeAt(0) < 0x20) continue;
+        buffer += ch;
+        write(ch);
+      }
+    };
+
+    stdin.on("data", onData);
+    stdin.on("line", onLine);
+  });
 }
 
 // ── Text Input ──────────────────────────────────────────────────────────────
@@ -38,41 +155,32 @@ export interface TextOptions {
 
 export async function text(opts: TextOptions): Promise<string> {
   const { message, placeholder, validate, required = false } = opts;
-
-  const rl = createInterface();
   const defaultHint = opts.default ? dim(` (${opts.default})`) : "";
   const placeholderHint = placeholder ? dim(placeholder) : "";
 
-  return new Promise<string>((resolve) => {
-    write(`${cyan("?")} ${bold(message)}${defaultHint} ${placeholderHint}\n`);
+  write(`${cyan("?")} ${bold(message)}${defaultHint} ${placeholderHint}\n`);
+
+  while (true) {
     write(`${cyan("❯")} `);
+    const input = await readLineRaw();
+    const value = input.trim() || opts.default || "";
 
-    rl.on("line", (input) => {
-      const value = input.trim() || opts.default || "";
+    if (required && !value) {
+      write(`${red("!")} This field is required\n`);
+      continue;
+    }
 
-      if (required && !value) {
-        clearLine();
-        write(`${red("!")} This field is required\n`);
-        write(`${cyan("❯")} `);
-        return;
+    if (validate) {
+      const result = validate(value);
+      if (result !== true) {
+        write(`${red("!")} ${result}\n`);
+        continue;
       }
+    }
 
-      if (validate) {
-        const result = validate(value);
-        if (result !== true) {
-          clearLine();
-          write(`${red("!")} ${result}\n`);
-          write(`${cyan("❯")} `);
-          return;
-        }
-      }
-
-      rl.close();
-      // Move up and rewrite the answer line
-      write(`\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${value}\n`);
-      resolve(value);
-    });
-  });
+    write(`\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${value}\n`);
+    return value;
+  }
 }
 
 // ── Password ────────────────────────────────────────────────────────────────
@@ -84,68 +192,72 @@ export interface PasswordOptions {
 }
 
 export async function password(opts: PasswordOptions): Promise<string> {
+  requireTTY();
   const { message, mask = "●", validate } = opts;
+  const { stdin } = getStdio();
 
-  return new Promise<string>((resolve) => {
+  return new Promise<string>((resolve, reject) => {
     write(`${cyan("?")} ${bold(message)}\n`);
     write(`${cyan("❯")} `);
 
-    const stdin = process.stdin;
-    const wasRaw = stdin.isRaw;
-    stdin.setRawMode(true);
-    stdin.resume();
+    const wasRaw = stdin.isRaw ?? false;
+    stdin.setRawMode?.(true);
+    stdin.resume?.();
 
     let value = "";
 
-    const onData = (data: Buffer) => {
-      const char = data.toString();
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.setRawMode?.(wasRaw);
+      stdin.pause?.();
+    };
 
-      if (char === "\r" || char === "\n") {
-        stdin.removeListener("data", onData);
-        stdin.setRawMode(wasRaw ?? false);
-        stdin.pause();
+    const onData = (data: Buffer | string) => {
+      const chunk = typeof data === "string" ? data : data.toString();
 
-        if (validate) {
-          const result = validate(value);
-          if (result !== true) {
-            write(`\n${red("!")} ${result}\n`);
-            write(`${cyan("❯")} `);
-            value = "";
-            stdin.setRawMode(true);
-            stdin.resume();
-            stdin.on("data", onData);
-            return;
+      // Process the chunk character-by-character so paste works correctly.
+      for (let i = 0; i < chunk.length; i++) {
+        const ch = chunk[i]!;
+
+        if (ch === "\r" || ch === "\n") {
+          if (validate) {
+            const result = validate(value);
+            if (result !== true) {
+              write(`\n${red("!")} ${result}\n`);
+              write(`${cyan("❯")} `);
+              value = "";
+              return;
+            }
           }
+          cleanup();
+          write(
+            `\n\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${mask.repeat(value.length)}\n`,
+          );
+          resolve(value);
+          return;
         }
 
-        write(
-          `\n\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${mask.repeat(value.length)}\n`,
-        );
-        resolve(value);
-        return;
-      }
-
-      if (char === "\x7f" || char === "\b") {
-        // Backspace
-        if (value.length > 0) {
-          value = value.slice(0, -1);
-          clearLine();
-          write(`${cyan("❯")} ${mask.repeat(value.length)}`);
+        if (ch === "\x7f" || ch === "\b") {
+          if (value.length > 0) {
+            value = value.slice(0, -1);
+            clearLine();
+            write(`${cyan("❯")} ${mask.repeat(value.length)}`);
+          }
+          continue;
         }
-        return;
-      }
 
-      if (char === "\x03") {
-        // Ctrl+C
-        stdin.removeListener("data", onData);
-        stdin.setRawMode(wasRaw ?? false);
-        write("\n");
-        process.exit(130);
-      }
+        if (ch === "\x03") {
+          cleanup();
+          write("\n");
+          reject(new PromptError("cancelled"));
+          return;
+        }
 
-      // Regular character
-      value += char;
-      write(mask);
+        // Regular printable character (ignore other control chars).
+        if (ch.charCodeAt(0) < 0x20) continue;
+        value += ch;
+        write(mask);
+      }
     };
 
     stdin.on("data", onData);
@@ -164,24 +276,17 @@ export async function confirm(opts: ConfirmOptions): Promise<boolean> {
   const defaultVal = opts.default ?? false;
   const hint = defaultVal ? dim("(Y/n)") : dim("(y/N)");
 
-  const rl = createInterface();
-
-  return new Promise<boolean>((resolve) => {
-    write(`${cyan("?")} ${bold(message)} ${hint} `);
-
-    rl.on("line", (input) => {
-      rl.close();
-      const val = input.trim().toLowerCase();
-      const result = val === "" ? defaultVal : val === "y" || val === "yes";
-      const display = result ? green("Yes") : red("No");
-      clearLine();
-      write(`\r${green("✔")} ${bold(message)} ${dim("·")} ${display}\n`);
-      resolve(result);
-    });
-  });
+  write(`${cyan("?")} ${bold(message)} ${hint} `);
+  const input = await readLineRaw();
+  const val = input.trim().toLowerCase();
+  const result = val === "" ? defaultVal : val === "y" || val === "yes";
+  const display = result ? green("Yes") : red("No");
+  clearLine();
+  write(`\x1b[1A\r\x1b[K${green("✔")} ${bold(message)} ${dim("·")} ${display}\n`);
+  return result;
 }
 
-// ── Select ──────────────────────────────────────────────────────────────────
+// ── Select / MultiSelect shared rendering ───────────────────────────────────
 
 export interface SelectOption<T = string> {
   label: string;
@@ -196,85 +301,129 @@ export interface SelectOptions<T = string> {
   default?: T;
 }
 
+interface MenuKey {
+  up: boolean;
+  down: boolean;
+  enter: boolean;
+  space: boolean;
+  toggleAll: boolean;
+  ctrlC: boolean;
+}
+
+function decodeKey(s: string): MenuKey {
+  return {
+    up: s === "\x1b[A" || s === "k",
+    down: s === "\x1b[B" || s === "j",
+    enter: s === "\r" || s === "\n",
+    space: s === " ",
+    toggleAll: s === "a",
+    ctrlC: s === "\x03",
+  };
+}
+
+function renderMenu(
+  message: string,
+  options: SelectOption<unknown>[],
+  cursor: number,
+  selected: Set<number> | null,
+  errorMessage: string | null,
+  hint: string | null,
+): string {
+  const lines: string[] = [];
+  const head = hint
+    ? `${cyan("?")} ${bold(message)} ${dim(hint)}`
+    : `${cyan("?")} ${bold(message)}`;
+  lines.push(head);
+  for (let i = 0; i < options.length; i++) {
+    const opt = options[i]!;
+    const active = i === cursor;
+    const prefix = active ? cyan("❯") : " ";
+    const checkbox = selected ? (selected.has(i) ? `${green("◉")} ` : `${dim("○")} `) : "";
+    const label = opt.disabled ? dim(opt.label) : active ? cyan(opt.label) : opt.label;
+    const hintStr = opt.hint ? dim(` (${opt.hint})`) : "";
+    const disabled = opt.disabled ? dim(" (disabled)") : "";
+    lines.push(`${prefix} ${checkbox}${label}${hintStr}${disabled}`);
+  }
+  if (selected) lines.push(dim(`  ${selected.size} selected`));
+  if (errorMessage) lines.push(red(`  ${errorMessage}`));
+  return lines.join("\n");
+}
+
 export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
+  requireTTY();
   const { message, options } = opts;
+  if (options.length === 0) throw new Error("select: options must not be empty");
   let cursor = options.findIndex((o) => o.value === opts.default);
   if (cursor === -1) cursor = 0;
-
-  // Skip disabled options
   while (options[cursor]?.disabled && cursor < options.length - 1) cursor++;
 
-  return new Promise<T>((resolve) => {
-    const stdin = process.stdin;
-    const wasRaw = stdin.isRaw;
-    stdin.setRawMode(true);
-    stdin.resume();
+  const { stdin } = getStdio();
 
-    function render() {
-      // Clear previous render
-      write(`\x1b[${options.length + 1}A`);
-      clearLine();
-      write(`${cyan("?")} ${bold(message)}\n`);
+  return new Promise<T>((resolve, reject) => {
+    const wasRaw = stdin.isRaw ?? false;
+    stdin.setRawMode?.(true);
+    stdin.resume?.();
 
-      for (let i = 0; i < options.length; i++) {
-        clearLine();
-        const opt = options[i]!;
-        const active = i === cursor;
-        const prefix = active ? cyan("❯") : " ";
-        const label = opt.disabled ? dim(opt.label) : active ? cyan(opt.label) : opt.label;
-        const hint = opt.hint ? dim(` (${opt.hint})`) : "";
-        const disabled = opt.disabled ? dim(" (disabled)") : "";
-        write(`${prefix} ${label}${hint}${disabled}\n`);
+    let firstPaint = true;
+    let lastLineCount = 0;
+
+    const paint = () => {
+      const body = renderMenu(
+        message,
+        options as SelectOption<unknown>[],
+        cursor,
+        null,
+        null,
+        null,
+      );
+      const nextLineCount = body.split("\n").length;
+      if (!firstPaint) {
+        write(`\x1b[${lastLineCount}A`);
       }
-    }
+      firstPaint = false;
+      // Clear each line as we re-emit.
+      const lines = body.split("\n");
+      for (const line of lines) write(`\r\x1b[K${line}\n`);
+      lastLineCount = nextLineCount;
+    };
 
-    // Initial render
-    write(`${cyan("?")} ${bold(message)}\n`);
-    for (let i = 0; i < options.length; i++) {
-      const opt = options[i]!;
-      const active = i === cursor;
-      const prefix = active ? cyan("❯") : " ";
-      const label = opt.disabled ? dim(opt.label) : active ? cyan(opt.label) : opt.label;
-      const hint = opt.hint ? dim(` (${opt.hint})`) : "";
-      const disabled = opt.disabled ? dim(" (disabled)") : "";
-      write(`${prefix} ${label}${hint}${disabled}\n`);
-    }
+    paint();
 
-    const onData = (data: Buffer) => {
-      const key = data.toString();
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.setRawMode?.(wasRaw);
+      stdin.pause?.();
+    };
 
-      if (key === "\x1b[A" || key === "k") {
-        // Up
+    const onData = (data: Buffer | string) => {
+      const s = typeof data === "string" ? data : data.toString();
+      const k = decodeKey(s);
+
+      if (k.up) {
         do {
           cursor = (cursor - 1 + options.length) % options.length;
         } while (options[cursor]?.disabled);
-        render();
-      } else if (key === "\x1b[B" || key === "j") {
-        // Down
+        paint();
+      } else if (k.down) {
         do {
           cursor = (cursor + 1) % options.length;
         } while (options[cursor]?.disabled);
-        render();
-      } else if (key === "\r" || key === "\n" || key === " ") {
-        // Enter / Space
-        stdin.removeListener("data", onData);
-        stdin.setRawMode(wasRaw ?? false);
-        stdin.pause();
-        // Clear menu
-        write(`\x1b[${options.length + 1}A`);
-        for (let i = 0; i <= options.length; i++) {
-          clearLine();
-          write(i < options.length ? "\n" : "");
-        }
-        write(`\x1b[${options.length + 1}A`);
+        paint();
+      } else if (k.enter) {
+        cleanup();
+        // Replace the menu with the final summary.
+        write(`\x1b[${lastLineCount}A`);
+        for (let i = 0; i < lastLineCount; i++) write("\r\x1b[K\n");
+        write(`\x1b[${lastLineCount}A`);
         write(`${green("✔")} ${bold(message)} ${dim("·")} ${options[cursor]!.label}\n`);
         resolve(options[cursor]!.value);
-      } else if (key === "\x03") {
-        stdin.removeListener("data", onData);
-        stdin.setRawMode(wasRaw ?? false);
+      } else if (k.ctrlC) {
+        cleanup();
         write("\n");
-        process.exit(130);
+        reject(new PromptError("cancelled"));
       }
+      // Note: space is intentionally NOT handled here. It is the multiselect toggle key;
+      // accepting it as confirm in select trains users into the wrong muscle memory.
     };
 
     stdin.on("data", onData);
@@ -293,112 +442,113 @@ export interface MultiSelectOptions<T = string> {
 }
 
 export async function multiselect<T = string>(opts: MultiSelectOptions<T>): Promise<T[]> {
+  requireTTY();
   const { message, options, min, max } = opts;
+  if (options.length === 0) throw new Error("multiselect: options must not be empty");
   const selected = new Set<number>();
   let cursor = 0;
+  let errorMessage: string | null = null;
 
-  // Apply defaults
   if (opts.default) {
     for (let i = 0; i < options.length; i++) {
       if (opts.default.includes(options[i]!.value)) selected.add(i);
     }
   }
 
-  return new Promise<T[]>((resolve) => {
-    const stdin = process.stdin;
-    const wasRaw = stdin.isRaw;
-    stdin.setRawMode(true);
-    stdin.resume();
+  const { stdin } = getStdio();
 
-    function render() {
-      write(`\x1b[${options.length + 2}A`);
-      clearLine();
-      write(`${cyan("?")} ${bold(message)} ${dim("(space to toggle, enter to confirm)")}\n`);
+  return new Promise<T[]>((resolve, reject) => {
+    const wasRaw = stdin.isRaw ?? false;
+    stdin.setRawMode?.(true);
+    stdin.resume?.();
 
-      for (let i = 0; i < options.length; i++) {
-        clearLine();
-        const opt = options[i]!;
-        const active = i === cursor;
-        const isSelected = selected.has(i);
-        const prefix = active ? cyan("❯") : " ";
-        const checkbox = isSelected ? green("◉") : dim("○");
-        const label = opt.disabled ? dim(opt.label) : active ? cyan(opt.label) : opt.label;
-        const hint = opt.hint ? dim(` (${opt.hint})`) : "";
-        write(`${prefix} ${checkbox} ${label}${hint}\n`);
-      }
-      clearLine();
-      write(dim(`  ${selected.size} selected\n`));
-    }
+    let firstPaint = true;
+    let lastLineCount = 0;
 
-    // Initial render
-    write(`${cyan("?")} ${bold(message)} ${dim("(space to toggle, enter to confirm)")}\n`);
-    for (let i = 0; i < options.length; i++) {
-      const opt = options[i]!;
-      const active = i === cursor;
-      const isSelected = selected.has(i);
-      const prefix = active ? cyan("❯") : " ";
-      const checkbox = isSelected ? green("◉") : dim("○");
-      const label = active ? cyan(opt.label) : opt.label;
-      const hint = opt.hint ? dim(` (${opt.hint})`) : "";
-      write(`${prefix} ${checkbox} ${label}${hint}\n`);
-    }
-    write(dim(`  ${selected.size} selected\n`));
+    const paint = () => {
+      const body = renderMenu(
+        message,
+        options as SelectOption<unknown>[],
+        cursor,
+        selected,
+        errorMessage,
+        "(space to toggle, a to toggle all, enter to confirm)",
+      );
+      const nextLineCount = body.split("\n").length;
+      if (!firstPaint) write(`\x1b[${lastLineCount}A`);
+      firstPaint = false;
+      for (const line of body.split("\n")) write(`\r\x1b[K${line}\n`);
+      lastLineCount = nextLineCount;
+    };
 
-    const onData = (data: Buffer) => {
-      const key = data.toString();
+    paint();
 
-      if (key === "\x1b[A" || key === "k") {
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.setRawMode?.(wasRaw);
+      stdin.pause?.();
+    };
+
+    const onData = (data: Buffer | string) => {
+      const s = typeof data === "string" ? data : data.toString();
+      const k = decodeKey(s);
+
+      if (k.up) {
         do {
           cursor = (cursor - 1 + options.length) % options.length;
         } while (options[cursor]?.disabled);
-        render();
-      } else if (key === "\x1b[B" || key === "j") {
+        errorMessage = null;
+        paint();
+      } else if (k.down) {
         do {
           cursor = (cursor + 1) % options.length;
         } while (options[cursor]?.disabled);
-        render();
-      } else if (key === " ") {
+        errorMessage = null;
+        paint();
+      } else if (k.space) {
         if (!options[cursor]?.disabled) {
           if (selected.has(cursor)) {
             selected.delete(cursor);
+          } else if (!max || selected.size < max) {
+            selected.add(cursor);
           } else {
-            if (!max || selected.size < max) selected.add(cursor);
+            errorMessage = `Maximum ${max} selections allowed`;
           }
         }
-        render();
-      } else if (key === "a") {
-        // Toggle all
-        if (selected.size === options.filter((o) => !o.disabled).length) {
+        paint();
+      } else if (k.toggleAll) {
+        const allEnabled = options.filter((o) => !o.disabled);
+        if (selected.size === allEnabled.length) {
           selected.clear();
         } else {
           for (let i = 0; i < options.length; i++) {
             if (!options[i]?.disabled) selected.add(i);
           }
         }
-        render();
-      } else if (key === "\r" || key === "\n") {
-        if (min && selected.size < min) {
-          // Don't allow submit
+        errorMessage = null;
+        paint();
+      } else if (k.enter) {
+        if (min !== undefined && selected.size < min) {
+          errorMessage = `Select at least ${min}`;
+          paint();
           return;
         }
-        stdin.removeListener("data", onData);
-        stdin.setRawMode(wasRaw ?? false);
-        stdin.pause();
-        // Clear
-        write(`\x1b[${options.length + 2}A`);
-        for (let i = 0; i <= options.length + 1; i++) {
-          clearLine();
-          write(i < options.length + 1 ? "\n" : "");
+        if (opts.required && selected.size === 0) {
+          errorMessage = "Select at least 1";
+          paint();
+          return;
         }
-        write(`\x1b[${options.length + 2}A`);
+        cleanup();
+        write(`\x1b[${lastLineCount}A`);
+        for (let i = 0; i < lastLineCount; i++) write("\r\x1b[K\n");
+        write(`\x1b[${lastLineCount}A`);
         const labels = [...selected].map((i) => options[i]!.label).join(", ");
         write(`${green("✔")} ${bold(message)} ${dim("·")} ${labels}\n`);
         resolve([...selected].map((i) => options[i]!.value));
-      } else if (key === "\x03") {
-        stdin.removeListener("data", onData);
-        stdin.setRawMode(wasRaw ?? false);
+      } else if (k.ctrlC) {
+        cleanup();
         write("\n");
-        process.exit(130);
+        reject(new PromptError("cancelled"));
       }
     };
 
@@ -424,7 +574,7 @@ export async function number(opts: NumberOptions): Promise<number> {
     required: opts.required,
     validate: (val) => {
       const n = Number(val);
-      if (Number.isNaN(n)) return "Please enter a valid number";
+      if (!Number.isFinite(n)) return "Please enter a valid number";
       if (opts.min !== undefined && n < opts.min) return `Minimum value is ${opts.min}`;
       if (opts.max !== undefined && n > opts.max) return `Maximum value is ${opts.max}`;
       return true;
@@ -440,9 +590,9 @@ type PromptFn<T> = () => Promise<T>;
 export async function group<T extends Record<string, unknown>>(
   prompts: { [K in keyof T]: PromptFn<T[K]> },
 ): Promise<T> {
-  const result: Partial<T> = {};
-  for (const [key, fn] of Object.entries(prompts)) {
-    result[key as keyof T] = await (fn as PromptFn<T[keyof T]>)();
+  const result = {} as T;
+  for (const key of Object.keys(prompts) as (keyof T)[]) {
+    result[key] = await prompts[key]();
   }
-  return result as T;
+  return result;
 }

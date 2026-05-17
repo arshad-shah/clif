@@ -20,9 +20,15 @@
 
 // Core
 export { parseArgs, ArgError } from "./core/args.js";
-export type { ArgDef, ParsedArgs, ParseOptions } from "./core/args.js";
+export type {
+  ArgDef,
+  ParsedArgs,
+  ParseOptions,
+  FlagValueOf,
+  FlagsFromDefs,
+} from "./core/args.js";
 
-export { createCLI } from "./core/command.js";
+export { createCLI, defineCommand } from "./core/command.js";
 export type { CommandDef, CommandContext, RunOptions } from "./core/command.js";
 
 // Colors

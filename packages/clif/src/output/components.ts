@@ -2,7 +2,9 @@
  * clif/output — Rich terminal output components.
  *
  * All components return strings by default (pure, testable).
- * Call `.print()` variants or pass `{ print: true }` to write to stdout.
+ * Spinners and progress bars are TTY-aware: in non-TTY streams
+ * (CI logs, files), they degrade to plain newline-terminated output
+ * instead of spamming cursor-control sequences.
  */
 
 import {
@@ -117,6 +119,40 @@ export interface TableOptions {
   maxColumnWidth?: number;
 }
 
+/**
+ * Truncate an ANSI-styled cell to a visible-column width while preserving
+ * the surrounding escape codes.
+ */
+function truncateAnsi(text: string, max: number, suffix = "…"): string {
+  if (visibleLength(text) <= max) return text;
+  const limit = Math.max(0, max - suffix.length);
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escapes.
+  const ANSI = /\x1b\[[0-9;]*m/g;
+  let visible = 0;
+  let out = "";
+  let i = 0;
+  while (i < text.length && visible < limit) {
+    ANSI.lastIndex = i;
+    const m = ANSI.exec(text);
+    if (m && m.index === i) {
+      out += m[0];
+      i = m.index + m[0].length;
+      continue;
+    }
+    out += text[i];
+    visible++;
+    i++;
+  }
+  // Collect any remaining ANSI close codes (e.g. resets) so styling terminates cleanly.
+  ANSI.lastIndex = i;
+  let m: RegExpExecArray | null = ANSI.exec(text);
+  while (m) {
+    out += m[0];
+    m = ANSI.exec(text);
+  }
+  return out + suffix;
+}
+
 export function table(rows: string[][], opts: TableOptions = {}): string {
   const { headers, border = true, headerColor = bold, compact = false, maxColumnWidth } = opts;
   const allRows = headers ? [headers, ...rows] : rows;
@@ -151,7 +187,7 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
       const raw = row[c] ?? "";
       const trimmed =
         maxColumnWidth && visibleLength(raw) > maxColumnWidth
-          ? `${stripAnsi(raw).slice(0, maxColumnWidth - 1)}…`
+          ? truncateAnsi(raw, maxColumnWidth)
           : raw;
       const padded = trimmed + " ".repeat(Math.max(0, w - visibleLength(trimmed)));
       return isHeader ? headerColor(padded) : padded;
@@ -164,9 +200,8 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
     }
 
     if (isHeader) lines.push(midSep);
-    if (!compact && r < allRows.length - 1 && !isHeader && border) {
-      // No extra lines between rows unless compact is false (keep border lines)
-    }
+    // Reserved for future per-row separator support when !compact.
+    void compact;
   }
 
   if (border) lines.push(bottomSep);
@@ -225,7 +260,11 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
-export function tree(root: TreeNode, prefix = ""): string {
+export function tree(root: TreeNode): string {
+  return renderTree(root, "");
+}
+
+function renderTree(root: TreeNode, prefix: string): string {
   const lines: string[] = [root.label];
 
   if (root.children) {
@@ -235,11 +274,11 @@ export function tree(root: TreeNode, prefix = ""): string {
       const connector = isLast ? "└── " : "├── ";
       const childPrefix = isLast ? "    " : "│   ";
 
-      const childTree = tree(child, prefix + childPrefix);
+      const childTree = renderTree(child, prefix + childPrefix);
       const childLines = childTree.split("\n");
       lines.push(prefix + connector + childLines[0]!);
       for (let j = 1; j < childLines.length; j++) {
-        lines.push(childLines[j]!);
+        lines.push(prefix + childPrefix + childLines[j]!);
       }
     }
   }
@@ -259,13 +298,22 @@ export interface SpinnerOptions {
 
 const DEFAULT_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
+const CURSOR_HIDE = "\x1b[?25l";
+const CURSOR_SHOW = "\x1b[?25h";
+
+function isStreamTTY(stream: NodeJS.WritableStream): boolean {
+  return !!(stream as { isTTY?: boolean }).isTTY;
+}
+
 export function createSpinner(opts: SpinnerOptions = {}) {
   const { frames = DEFAULT_FRAMES, interval = 80, color = cyan, stream = process.stderr } = opts;
+  const tty = isStreamTTY(stream);
 
   let text = opts.text ?? "";
   let frameIdx = 0;
   let timer: ReturnType<typeof setInterval> | null = null;
   let isSpinning = false;
+  let sigintHandler: (() => void) | null = null;
 
   function render() {
     const frame = color(frames[frameIdx % frames.length]!);
@@ -273,42 +321,63 @@ export function createSpinner(opts: SpinnerOptions = {}) {
     frameIdx++;
   }
 
-  return {
+  function cleanup() {
+    if (timer) clearInterval(timer);
+    timer = null;
+    if (tty) stream.write(`\r\x1b[K${CURSOR_SHOW}`);
+    if (sigintHandler) {
+      process.off("SIGINT", sigintHandler);
+      sigintHandler = null;
+    }
+    isSpinning = false;
+  }
+
+  const api = {
     start(msg?: string) {
-      if (msg) text = msg;
+      if (msg !== undefined) text = msg;
+      // Idempotent: if already running, just refresh text and continue.
+      if (isSpinning) return api;
       isSpinning = true;
-      render();
-      timer = setInterval(render, interval);
-      return this;
+      if (tty) {
+        stream.write(CURSOR_HIDE);
+        render();
+        timer = setInterval(render, interval);
+        sigintHandler = () => {
+          cleanup();
+        };
+        process.once("SIGINT", sigintHandler);
+      } else {
+        // Non-TTY: single static line so logs stay readable.
+        stream.write(`${color(frames[0]!)} ${text}\n`);
+      }
+      return api;
     },
     stop(finalText?: string) {
-      if (timer) clearInterval(timer);
-      timer = null;
-      isSpinning = false;
-      stream.write("\r\x1b[K");
+      cleanup();
       if (finalText) stream.write(`${finalText}\n`);
-      return this;
+      return api;
     },
     succeed(msg?: string) {
-      return this.stop(`${green("✔")} ${msg ?? text}`);
+      return api.stop(`${green("✔")} ${msg ?? text}`);
     },
     fail(msg?: string) {
-      return this.stop(`${red("✖")} ${msg ?? text}`);
+      return api.stop(`${red("✖")} ${msg ?? text}`);
     },
     warn(msg?: string) {
-      return this.stop(`${yellow("⚠")} ${msg ?? text}`);
+      return api.stop(`${yellow("⚠")} ${msg ?? text}`);
     },
     info(msg?: string) {
-      return this.stop(`${cyan("ℹ")} ${msg ?? text}`);
+      return api.stop(`${cyan("ℹ")} ${msg ?? text}`);
     },
     update(msg: string) {
       text = msg;
-      return this;
+      return api;
     },
     get isActive() {
       return isSpinning;
     },
   };
+  return api;
 }
 
 // ── Progress Bar ────────────────────────────────────────────────────────────
@@ -324,6 +393,11 @@ export interface ProgressOptions {
 }
 
 export function createProgress(opts: ProgressOptions) {
+  if (!Number.isFinite(opts.total) || opts.total <= 0) {
+    throw new RangeError(
+      `createProgress: total must be a positive finite number, got ${String(opts.total)}`,
+    );
+  }
   const {
     total,
     width = 30,
@@ -333,36 +407,42 @@ export function createProgress(opts: ProgressOptions) {
     color = green,
     stream = process.stderr,
   } = opts;
+  const tty = isStreamTTY(stream);
 
   let current = 0;
 
-  function render() {
+  function format_(): string {
     const ratio = Math.min(current / total, 1);
     const filled = Math.round(width * ratio);
     const empty = width - filled;
     const bar = color(complete.repeat(filled)) + dim(incomplete.repeat(empty));
     const percent = `${Math.round(ratio * 100)}%`;
-
-    const output = format
+    return format
       .replace(":bar", bar)
       .replace(":percent", percent)
       .replace(":current", String(current))
       .replace(":total", String(total));
+  }
 
-    stream.write(`\r\x1b[K${output}`);
+  function render() {
+    if (tty) {
+      stream.write(`\r\x1b[K${format_()}`);
+      if (current >= total) stream.write("\n");
+    } else {
+      // Non-TTY: only emit on completion (every tick would flood logs).
+      if (current >= total) stream.write(`${format_()}\n`);
+    }
   }
 
   return {
     tick(amount = 1) {
       current = Math.min(current + amount, total);
       render();
-      if (current >= total) stream.write("\n");
       return this;
     },
     update(value: number) {
-      current = Math.min(value, total);
+      current = Math.min(Math.max(value, 0), total);
       render();
-      if (current >= total) stream.write("\n");
       return this;
     },
     get value() {
@@ -412,3 +492,6 @@ export const log = {
   step: (n: number, total: number, msg: string) =>
     process.stdout.write(`${dim(`[${n}/${total}]`)} ${msg}\n`),
 };
+
+// Suppress unused-import warning when stripAnsi is only used indirectly via visibleLength.
+void stripAnsi;
