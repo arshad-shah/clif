@@ -1,0 +1,36 @@
+{
+  "name": "clif-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm --filter clif build",
+    "test": "pnpm --filter clif test",
+    "test:coverage": "pnpm --filter clif test:coverage",
+    "typecheck": "pnpm -r typecheck",
+    "docs:dev": "pnpm --filter clif-docs dev",
+    "docs:build": "pnpm --filter clif-docs build",
+    "example": "pnpm --filter @clif/example start",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write . && prettier --write \"**/*.{md,mdx,yaml,yml,css,astro}\"",
+    "format:check": "biome format . && prettier --check \"**/*.{md,mdx,yaml,yml,css,astro}\"",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm build && changeset publish"
+  },
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=11"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "volta": {
+    "node": "24.15.0",
+    "pnpm": "11.1.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@changesets/cli": "^2.27.10",
+    "@vitest/coverage-v8": "^4.1.6",
+    "prettier": "^3.4.2"
+  }
+}
