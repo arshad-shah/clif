@@ -1,0 +1,45 @@
+name: Feature request
+description: Propose a new feature or API change
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the user-facing problem you're hitting. "I want X" answers
+        get less attention than "I'm trying to do Y and X would make it
+        possible / cleaner".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: |
+        Sketch the API surface — function signatures, options, example
+        usage. Doesn't have to be polished; the shape matters more than
+        the names.
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What else did you try or think about? Why didn't they fit?
+
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: clif principles
+      description: |
+        Make sure the proposal fits the project's design constraints.
+        If it doesn't, that's fine — say why it's worth bending one of these.
+      options:
+        - label: Stays zero-dependency (no new runtime deps)
+        - label: Tree-shakeable (no side effects on import)
+        - label: Pure where possible (returns strings, doesn't write to stdout)
+        - label: TTY-aware (respects NO_COLOR, FORCE_COLOR, pipe detection)
