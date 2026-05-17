@@ -305,6 +305,40 @@ describe("tree", () => {
     const childLine = lines.find((l) => l.includes("grandchild"))!;
     expect(childLine.indexOf("grandchild")).toBeGreaterThan(parentLine.indexOf("parent"));
   });
+
+  it("indents three-level depth by exactly one column per level", () => {
+    // Regression: earlier `renderTree` prepended `prefix + childPrefix` to
+    // every recursion-returned line, which double-indented every node past
+    // depth 2. The expected layout is one connector column per parent.
+    const result = tree({
+      label: "A",
+      children: [{ label: "B", children: [{ label: "C" }] }],
+    });
+    expect(result).toBe("A\n└── B\n    └── C");
+  });
+
+  it("matches the documented example with mixed siblings + deep nesting", () => {
+    // docs/components/list-tree.md publishes this exact layout.
+    const result = tree({
+      label: "src",
+      children: [
+        { label: "core", children: [{ label: "colors.ts" }, { label: "args.ts" }] },
+        { label: "output", children: [{ label: "components.ts" }] },
+        { label: "index.ts" },
+      ],
+    });
+    expect(result).toBe(
+      [
+        "src",
+        "├── core",
+        "│   ├── colors.ts",
+        "│   └── args.ts",
+        "├── output",
+        "│   └── components.ts",
+        "└── index.ts",
+      ].join("\n"),
+    );
+  });
 });
 
 // ── Divider ─────────────────────────────────────────────────────────────────

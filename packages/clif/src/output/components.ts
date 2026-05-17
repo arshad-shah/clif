@@ -242,11 +242,16 @@ function renderTree(root: TreeNode, prefix: string): string {
       const connector = isLast ? "└── " : "├── ";
       const childPrefix = isLast ? "    " : "│   ";
 
+      // Recurse with the column owned by this child's subtree as the prefix.
+      // The recursion bakes that prefix into every line below the child's
+      // label, so we only prepend our own `prefix + connector` to the first
+      // line (the child label) and pass the rest through verbatim — otherwise
+      // grandchildren get double-indented.
       const childTree = renderTree(child, prefix + childPrefix);
       const childLines = childTree.split("\n");
       lines.push(prefix + connector + childLines[0]!);
       for (let j = 1; j < childLines.length; j++) {
-        lines.push(prefix + childPrefix + childLines[j]!);
+        lines.push(childLines[j]!);
       }
     }
   }
