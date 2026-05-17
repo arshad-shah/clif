@@ -6,13 +6,13 @@ description: Get up and running with clif in under 2 minutes.
 ## Installation
 
 ```bash
-npm install clif
+npm install @arshad-shah/clif
 ```
 
 ## Your first CLI
 
 ```typescript
-import { createCLI, green, bold, box } from "clif";
+import { createCLI, green, bold, box } from "@arshad-shah/clif";
 
 const cli = createCLI({
   name: "greet",
@@ -67,7 +67,7 @@ npx tsx greet.ts --help
 Prompts live in a separate entry point to keep the core bundle tiny:
 
 ```typescript
-import { text, select, confirm } from "clif/prompts";
+import { text, select, confirm } from "@arshad-shah/clif/prompts";
 
 const name = await text({ message: "Project name?" });
 

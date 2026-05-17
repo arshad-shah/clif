@@ -6,7 +6,7 @@ description: Yes/no confirmation and numeric input prompts.
 ## Confirm
 
 ```typescript
-import { confirm } from "clif/prompts";
+import { confirm } from "@arshad-shah/clif/prompts";
 
 const proceed = await confirm({
   message: "Deploy to production?",
@@ -23,7 +23,7 @@ Displays `(Y/n)` or `(y/N)` based on the default. Accepts `y`, `yes`, `n`, `no` 
 ## Number
 
 ```typescript
-import { number } from "clif/prompts";
+import { number } from "@arshad-shah/clif/prompts";
 
 const port = await number({
   message: "Port number:",

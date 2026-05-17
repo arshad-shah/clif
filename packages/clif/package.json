@@ -1,5 +1,5 @@
 {
-  "name": "clif",
+  "name": "@arshad-shah/clif",
   "version": "1.0.0",
   "description": "Tiny, zero-dependency CLI framework with beautiful output and composable API",
   "type": "module",

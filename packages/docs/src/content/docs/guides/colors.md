@@ -10,7 +10,7 @@ clif includes a complete ANSI color system that respects `NO_COLOR`, `FORCE_COLO
 Every color is a pure function that wraps text in ANSI escape codes:
 
 ```typescript
-import { red, green, blue, bold, dim, underline } from "clif";
+import { red, green, blue, bold, dim, underline } from "@arshad-shah/clif";
 
 console.log(red("Error!"));
 console.log(green("Success!"));
@@ -22,7 +22,7 @@ console.log(bold(blue("Important")));
 Colors compose naturally through nesting:
 
 ```typescript
-import { bold, red, underline, compose } from "clif";
+import { bold, red, underline, compose } from "@arshad-shah/clif";
 
 // Nested calls
 console.log(bold(red("critical error")));
@@ -60,7 +60,7 @@ console.log(error("Something went wrong"));
 ## Extended colors
 
 ```typescript
-import { rgb256, bgRgb256, rgb, bgRgb, hex, bgHex } from "clif";
+import { rgb256, bgRgb256, rgb, bgRgb, hex, bgHex } from "@arshad-shah/clif";
 
 // 256-color palette (0–255)
 console.log(rgb256(208)("orange"));
@@ -78,7 +78,7 @@ console.log(bgHex("#1a1a2e")("dark background"));
 clif automatically detects the terminal's color level:
 
 ```typescript
-import { colorLevel, isColorSupported } from "clif";
+import { colorLevel, isColorSupported } from "@arshad-shah/clif";
 
 console.log(colorLevel()); // 0 | 1 | 2 | 3
 console.log(isColorSupported()); // boolean
@@ -93,7 +93,7 @@ colorLevel(3); // Force truecolor
 ## Utilities
 
 ```typescript
-import { stripAnsi, visibleLength } from "clif";
+import { stripAnsi, visibleLength } from "@arshad-shah/clif";
 
 const colored = red("hello");
 stripAnsi(colored); // "hello"

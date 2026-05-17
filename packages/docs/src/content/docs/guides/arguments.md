@@ -8,7 +8,7 @@ clif's argument parser is fast, correct, and requires no configuration objects b
 ## Basic parsing
 
 ```typescript
-import { parseArgs } from "clif";
+import { parseArgs } from "@arshad-shah/clif";
 
 const result = parseArgs(
   {
@@ -97,7 +97,7 @@ mycli --verbose -- --some-other-tool-flag
 Parse errors throw `ArgError` with a descriptive message:
 
 ```typescript
-import { parseArgs, ArgError } from "clif";
+import { parseArgs, ArgError } from "@arshad-shah/clif";
 
 try {
   parseArgs({ port: { type: "number" } }, { args: ["--port", "abc"] });

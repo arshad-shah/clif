@@ -9,7 +9,7 @@
  *   pnpm example args --port 3000 -v file.txt -- --passthrough
  */
 
-import { type CommandDef, bold, createCLI, hex, keyValue, log } from "clif";
+import { type CommandDef, bold, createCLI, hex, keyValue, log } from "@arshad-shah/clif";
 import * as d from "./demos.js";
 import * as p from "./prompts.js";
 

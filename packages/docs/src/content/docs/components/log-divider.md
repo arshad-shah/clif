@@ -6,7 +6,7 @@ description: Semantic log helpers and visual separators.
 ## Log helpers
 
 ```typescript
-import { log } from "clif";
+import { log } from "@arshad-shah/clif";
 
 log.info("Server started on port 3000"); // ℹ Server started on port 3000
 log.success("Build complete"); // ✔ Build complete
@@ -21,7 +21,7 @@ log.step(2, 5, "Compiling TypeScript..."); // [2/5] Compiling TypeScript...
 ## Divider
 
 ```typescript
-import { divider } from "clif";
+import { divider } from "@arshad-shah/clif";
 
 console.log(divider());
 // ────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ console.log(divider({ char: "═", width: 30 }));
 ## Banner
 
 ```typescript
-import { banner } from "clif";
+import { banner } from "@arshad-shah/clif";
 
 console.log(banner("Deploy v2.0"));
 // ══════════════════
@@ -47,7 +47,7 @@ console.log(banner("Deploy v2.0"));
 ## Key-Value display
 
 ```typescript
-import { keyValue } from "clif";
+import { keyValue } from "@arshad-shah/clif";
 
 console.log(
   keyValue({

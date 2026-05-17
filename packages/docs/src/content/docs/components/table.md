@@ -6,7 +6,7 @@ description: Render aligned tables with headers, borders, and column width contr
 ## Basic table
 
 ```typescript
-import { table } from "clif";
+import { table } from "@arshad-shah/clif";
 
 console.log(
   table(
@@ -42,7 +42,7 @@ table([["A very long cell value that should be truncated", "short"]], {
 ## Custom header color
 
 ```typescript
-import { table, cyan } from "clif";
+import { table, cyan } from "@arshad-shah/clif";
 table([["data"]], { headers: ["Column"], headerColor: cyan });
 ```
 

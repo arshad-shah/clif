@@ -6,7 +6,7 @@ description: Interactive text input and masked password prompts.
 ## Text input
 
 ```typescript
-import { text } from "clif/prompts";
+import { text } from "@arshad-shah/clif/prompts";
 
 const name = await text({
   message: "What is your name?",
@@ -31,7 +31,7 @@ const name = await text({
 ## Password input
 
 ```typescript
-import { password } from "clif/prompts";
+import { password } from "@arshad-shah/clif/prompts";
 
 const secret = await password({
   message: "Enter API token:",

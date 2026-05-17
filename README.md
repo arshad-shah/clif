@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/arshad-shah/clif/actions/workflows/ci.yml/badge.svg)](https://github.com/arshad-shah/clif/actions/workflows/ci.yml)
 [![Release](https://github.com/arshad-shah/clif/actions/workflows/release.yml/badge.svg)](https://github.com/arshad-shah/clif/actions/workflows/release.yml)
-[![npm version](https://img.shields.io/npm/v/clif?logo=npm)](https://www.npmjs.com/package/clif)
-[![npm downloads](https://img.shields.io/npm/dm/clif?logo=npm&color=cb3837)](https://www.npmjs.com/package/clif)
-[![bundle size](https://img.shields.io/bundlejs/size/clif?label=bundle&color=f5c76a)](https://bundlejs.com/?q=clif)
-[![License: MIT](https://img.shields.io/npm/l/clif?color=blue)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/@arshad-shah/clif?logo=npm)](https://www.npmjs.com/package/@arshad-shah/clif)
+[![npm downloads](https://img.shields.io/npm/dm/@arshad-shah/clif?logo=npm&color=cb3837)](https://www.npmjs.com/package/@arshad-shah/clif)
+[![bundle size](https://img.shields.io/bundlejs/size/@arshad-shah/clif?label=bundle&color=f5c76a)](https://bundlejs.com/?q=@arshad-shah/clif)
+[![License: MIT](https://img.shields.io/npm/l/@arshad-shah/clif?color=blue)](./LICENSE)
 [![pnpm](https://img.shields.io/badge/pnpm-11-f69220?logo=pnpm)](https://pnpm.io)
-[![types: included](https://img.shields.io/npm/types/clif?logo=typescript)](./packages/clif/src)
+[![types: included](https://img.shields.io/npm/types/@arshad-shah/clif?logo=typescript)](./packages/clif/src)
 
 > Tiny, zero-dependency CLI framework with beautiful output and a composable API.
 

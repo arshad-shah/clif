@@ -6,7 +6,7 @@ description: Render bordered boxes with titles, alignment, and colors.
 ## Basic box
 
 ```typescript
-import { box } from "clif";
+import { box } from "@arshad-shah/clif";
 console.log(box("Hello, World!"));
 ```
 
@@ -24,7 +24,7 @@ box("bold", { border: "bold" }); // ┏━━━━━┓
 ## Title, alignment, and colors
 
 ```typescript
-import { box, cyan, yellow } from "clif";
+import { box, cyan, yellow } from "@arshad-shah/clif";
 
 box("Content", {
   title: "Notice",

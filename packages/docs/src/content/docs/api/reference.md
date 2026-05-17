@@ -7,10 +7,10 @@ description: Complete API surface of the clif package.
 
 ```typescript
 // Core — colors, args, commands, output components, utilities
-import { ... } from "clif";
+import { ... } from "@arshad-shah/clif";
 
 // Prompts — interactive input (separate to keep core bundle tiny)
-import { ... } from "clif/prompts";
+import { ... } from "@arshad-shah/clif/prompts";
 ```
 
 ## `clif` exports

@@ -50,7 +50,7 @@ importers:
 
   packages/example:
     dependencies:
-      clif:
+      '@arshad-shah/clif':
         specifier: workspace:*
         version: link:../clif
     devDependencies:

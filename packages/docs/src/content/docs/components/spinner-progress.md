@@ -6,7 +6,7 @@ description: Animated spinners and progress bars for long-running operations.
 ## Spinner
 
 ```typescript
-import { createSpinner } from "clif";
+import { createSpinner } from "@arshad-shah/clif";
 
 const spinner = createSpinner({ text: "Installing dependencies..." });
 spinner.start();
@@ -35,7 +35,7 @@ spinner.info("Build skipped — no changes");
 ## Progress bar
 
 ```typescript
-import { createProgress } from "clif";
+import { createProgress } from "@arshad-shah/clif";
 
 const bar = createProgress({ total: 100 });
 
