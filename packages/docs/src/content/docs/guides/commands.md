@@ -20,9 +20,11 @@ const cli = createCLI({
 cli.run();
 ```
 
+`createCLI` returns `{ run, command }`. Call `run()` to drive the resolver against `process.argv` (or pass `{ argv }` to override).
+
 ## Subcommands
 
-Commands can nest arbitrarily deep:
+Commands nest arbitrarily deep:
 
 ```typescript
 const cli = createCLI({
@@ -58,8 +60,7 @@ const cli = createCLI({
     },
     {
       name: "seed",
-      description: "Seed the database",
-      handler: async (ctx) => {
+      handler: async () => {
         /* ... */
       },
     },
@@ -73,9 +74,26 @@ db migrate down
 db seed
 ```
 
+## `defineCommand` helper
+
+Identity function for better IDE autocomplete and a single import-site for go-to-definition. Equivalent to passing the literal directly.
+
+```typescript
+import { defineCommand } from "@arshad-shah/clif";
+
+const migrate = defineCommand({
+  name: "migrate",
+  description: "Run database migrations",
+  args: { steps: { type: "number", default: 0 } },
+  handler: async (ctx) => {
+    /* ctx.args.flags.steps is fully typed */
+  },
+});
+```
+
 ## Setup hooks
 
-The `setup` function runs before the handler — useful for auth checks, config loading, or middleware-like patterns:
+`setup` runs before the handler — useful for auth checks, config loading, or middleware-like patterns. Use `ctx.meta` to pass data forward:
 
 ```typescript
 const cli = createCLI({
@@ -93,20 +111,38 @@ const cli = createCLI({
 
 ## The context object
 
-Every handler receives a `CommandContext`:
+Every handler (and `setup`) receives a `CommandContext`:
 
 ```typescript
 interface CommandContext {
   command: CommandDef; // The resolved command
-  args: ParsedArgs; // Parsed flags + positional
-  rawArgs: string[]; // Original argv
+  parents: CommandDef[]; // Ancestor chain, root → parent (excludes self)
+  args: ParsedArgs; // Parsed flags + positional + rest + unknown
+  rawArgs: string[]; // Original argv slice
   meta: Record<string, unknown>; // Metadata bag for composition
 }
 ```
 
+`parents` lets a handler walk back to its root — useful for emitting fully-qualified usage hints or threading shared config.
+
 ## Auto-help and version
 
-`--help` and `--version` are handled automatically. When a command has subcommands but no handler, running it displays the help screen.
+`--help` (`-h`) is always available. `--version` (`-v`) is only added if the root command defines a `version`. If you define your own flag with the same alias (e.g. `verbose` aliased to `v`), clif yields the short flag to you and keeps the long form (`--help` / `--version`) reserved.
+
+When a command has subcommands but no handler, running it just prints help.
+
+## Strict subcommands
+
+When `command.commands` is non-empty and there's no `handler`, an unrecognized first positional becomes an error with a "did you mean?" suggestion. Set `strictSubcommands` explicitly to override this default in either direction:
+
+```typescript
+const cli = createCLI({
+  name: "git",
+  strictSubcommands: true, // even if a handler is defined
+  commands: [{ name: "add", handler: () => {} }],
+});
+// `git buidl` → ✖ Unknown command: buidl   Did you mean "build"?
+```
 
 ## Error handling
 
@@ -119,4 +155,4 @@ cli.run({
 });
 ```
 
-Without `onError`, errors are written to stderr and `process.exitCode` is set to 1.
+Without `onError`, errors are written to stderr with a friendly icon and `process.exitCode` is set to 1. `ArgError`s are rendered with `✖ Invalid argument`; other errors get `✖ Error`.

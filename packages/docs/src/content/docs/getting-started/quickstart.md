@@ -32,8 +32,9 @@ const cli = createCLI({
     },
   },
   handler: (ctx) => {
-    const name = ctx.args.flags.name as string;
-    let greeting = `Hello, ${green(name)}!`;
+    // ctx.args.flags is typed; values come straight from your `args` schema.
+    const name = ctx.args.flags.name;
+    let greeting = `Hello, ${green(String(name))}!`;
     if (ctx.args.flags.loud) greeting = bold(greeting.toUpperCase());
 
     console.log(box(greeting, { title: "Greeting", border: "round" }));

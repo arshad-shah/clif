@@ -217,7 +217,7 @@ describe("createCLI integration", () => {
     expect(raw).toEqual(["--foo", "bar"]);
   });
 
-  describe("help/version aliases (B3)", () => {
+  describe("help/version aliases", () => {
     it("prints help on -h", async () => {
       const spy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
       const cli = createCLI({ name: "myapp", description: "App" });
@@ -261,7 +261,7 @@ describe("createCLI integration", () => {
     });
   });
 
-  describe("unknown subcommand (B4)", () => {
+  describe("unknown subcommand", () => {
     it("errors when an unknown subcommand is given", async () => {
       const onError = vi.fn();
       const cli = createCLI({
@@ -294,7 +294,7 @@ describe("createCLI integration", () => {
     });
   });
 
-  describe("parent chain in context (S2)", () => {
+  describe("parent chain in context", () => {
     it("exposes ancestors via ctx.parents", async () => {
       let parents: string[] = [];
       const cli = createCLI({
@@ -318,7 +318,7 @@ describe("createCLI integration", () => {
     });
   });
 
-  describe("defineCommand helper (S4)", () => {
+  describe("defineCommand helper", () => {
     it("returns the command definition unchanged for type inference", () => {
       const cmd = defineCommand({ name: "x", handler: () => {} });
       expect(cmd.name).toBe("x");

@@ -1,0 +1,60 @@
+---
+/**
+ * SiteTitle override — wraps Starlight's default with a version pill.
+ *
+ * The version is read from `packages/clif/package.json` at build time, so
+ * shipping a new release (which bumps that file via changesets) automatically
+ * updates the pill on the next docs rebuild. No manual sync required.
+ */
+import Default from "@astrojs/starlight/components/SiteTitle.astro";
+import pkg from "../../../clif/package.json";
+
+const version = pkg.version;
+const npmHref = `https://www.npmjs.com/package/${pkg.name}/v/${version}`;
+---
+
+<div class="site-title-row">
+  <Default><slot /></Default>
+  <a
+    class="version-pill"
+    href={npmHref}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label={`View v${version} on npm`}
+  >
+    v{version}
+  </a>
+</div>
+
+<style>
+  .site-title-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .version-pill {
+    display: inline-flex;
+    align-items: center;
+    height: 1.5rem;
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--sl-color-hairline-shade);
+    background: var(--sl-color-accent-low);
+    color: var(--sl-color-accent-high);
+    font-family: var(--sl-font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+  .version-pill:hover {
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-accent);
+  }
+</style>

@@ -205,7 +205,7 @@ describe("parseArgs", () => {
     });
   });
 
-  describe("stacked short flags validation (B1)", () => {
+  describe("stacked short flags validation", () => {
     it("throws when a stacked char is a non-boolean type", () => {
       expect(() =>
         parseArgs(
@@ -228,7 +228,7 @@ describe("parseArgs", () => {
     });
   });
 
-  describe("required + default interaction (B2)", () => {
+  describe("required + default interaction", () => {
     it("still throws missing required when default is set and user did not provide", () => {
       // A required flag should be required even if a default is defined.
       expect(() =>
@@ -237,7 +237,7 @@ describe("parseArgs", () => {
     });
   });
 
-  describe("array / repeat flags (B12)", () => {
+  describe("array / repeat flags", () => {
     it("collects repeated --include into array", () => {
       const result = parseArgs(
         { include: { type: "string", multiple: true } },
@@ -277,7 +277,7 @@ describe("parseArgs", () => {
     });
   });
 
-  describe("--no-foo negation (B13)", () => {
+  describe("--no-foo negation", () => {
     it("--no-flag sets a boolean to false", () => {
       const result = parseArgs(
         { verbose: { type: "boolean", default: true } },
@@ -297,6 +297,74 @@ describe("parseArgs", () => {
         { args: ["--no-verbose"] },
       );
       expect(result.flags.verbose).toBe(false);
+    });
+  });
+
+  describe("default validated against choices", () => {
+    it("throws when a default value is not one of the choices", () => {
+      expect(() =>
+        parseArgs(
+          { env: { type: "string", choices: ["dev", "prod"], default: "invalid" } },
+          { args: [] },
+        ),
+      ).toThrow(ArgError);
+    });
+
+    it("accepts a default that matches a choice", () => {
+      const result = parseArgs(
+        { env: { type: "string", choices: ["dev", "prod"], default: "dev" } },
+        { args: [] },
+      );
+      expect(result.flags.env).toBe("dev");
+    });
+
+    it("validates each element of a multiple default", () => {
+      expect(() =>
+        parseArgs(
+          {
+            env: {
+              type: "string",
+              multiple: true,
+              choices: ["dev", "prod"],
+              default: ["dev", "bogus"],
+            },
+          },
+          { args: [] },
+        ),
+      ).toThrow(ArgError);
+    });
+  });
+
+  describe("empty inline value", () => {
+    it("throws on empty number value: --port=", () => {
+      expect(() => parseArgs({ port: { type: "number" } }, { args: ["--port="] })).toThrow(
+        ArgError,
+      );
+    });
+
+    it("accepts empty string value: --name=", () => {
+      const result = parseArgs({ name: { type: "string" } }, { args: ["--name="] });
+      expect(result.flags.name).toBe("");
+    });
+  });
+
+  describe("scientific notation negative numbers", () => {
+    it("accepts -1e3 as a number value", () => {
+      const result = parseArgs({ n: { type: "number" } }, { args: ["--n", "-1e3"] });
+      expect(result.flags.n).toBe(-1000);
+    });
+
+    it("accepts -2.5e2 as a number value via short flag", () => {
+      const result = parseArgs({ n: { type: "number", alias: "x" } }, { args: ["-x", "-2.5e2"] });
+      expect(result.flags.n).toBe(-250);
+    });
+  });
+
+  describe("--no-foo=value rejection", () => {
+    it("throws ArgError when supplying a value to a --no-* negation of a known boolean", () => {
+      expect(() =>
+        parseArgs({ verbose: { type: "boolean", default: true } }, { args: ["--no-verbose=true"] }),
+      ).toThrow(/cannot.*value.*--no-verbose|--no-verbose.*value/i);
     });
   });
 
@@ -327,7 +395,7 @@ describe("parseArgs", () => {
     });
   });
 
-  describe("type inference (S1)", () => {
+  describe("type inference", () => {
     it("infers flag value types from ArgDef", () => {
       const result = parseArgs(
         {

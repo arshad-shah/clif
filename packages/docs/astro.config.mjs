@@ -14,7 +14,14 @@ export default defineConfig({
       logo: {
         light: "./src/assets/logo-light.svg",
         dark: "./src/assets/logo-dark.svg",
-        replacesTitle: true,
+        // Show the wordmark alongside the icon so the nav reads as
+        // "[icon] clif [version-pill]" rather than icon-only.
+      },
+      components: {
+        // Adds a version pill next to the site title, sourced from
+        // packages/clif/package.json so it tracks the published version
+        // automatically (changesets bumps that file on every release).
+        SiteTitle: "./src/components/SiteTitle.astro",
       },
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/arshad-shah/clif" }],
       customCss: ["./src/styles/ember.css"],
