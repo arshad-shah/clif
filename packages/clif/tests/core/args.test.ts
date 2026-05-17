@@ -205,6 +205,151 @@ describe("parseArgs", () => {
     });
   });
 
+  describe("stacked short flags validation (B1)", () => {
+    it("throws when a stacked char is a non-boolean type", () => {
+      expect(() =>
+        parseArgs(
+          { a: { type: "boolean" }, b: { type: "boolean" }, c: { type: "string" } },
+          { args: ["-abc"] },
+        ),
+      ).toThrow(/-c.*boolean|stack/i);
+    });
+
+    it("collects unknown stacked chars into unknown[]", () => {
+      const result = parseArgs({ a: { type: "boolean" } }, { args: ["-ax"] });
+      expect(result.flags.a).toBe(true);
+      expect(result.unknown).toContain("x");
+    });
+
+    it("allows unknown stacked chars when allowUnknown is true", () => {
+      const result = parseArgs({ a: { type: "boolean" } }, { args: ["-ax"], allowUnknown: true });
+      expect(result.flags.a).toBe(true);
+      expect(result.flags.x).toBe(true);
+    });
+  });
+
+  describe("required + default interaction (B2)", () => {
+    it("still throws missing required when default is set and user did not provide", () => {
+      // A required flag should be required even if a default is defined.
+      expect(() =>
+        parseArgs({ name: { type: "string", required: true, default: "fallback" } }, { args: [] }),
+      ).toThrow(/Missing required flag/);
+    });
+  });
+
+  describe("array / repeat flags (B12)", () => {
+    it("collects repeated --include into array", () => {
+      const result = parseArgs(
+        { include: { type: "string", multiple: true } },
+        { args: ["--include", "a", "--include", "b", "--include=c"] },
+      );
+      expect(result.flags.include).toEqual(["a", "b", "c"]);
+    });
+
+    it("returns empty array when multiple flag not provided", () => {
+      const result = parseArgs({ include: { type: "string", multiple: true } }, { args: [] });
+      expect(result.flags.include).toEqual([]);
+    });
+
+    it("uses default when provided as array", () => {
+      const result = parseArgs(
+        { tag: { type: "string", multiple: true, default: ["x"] } },
+        { args: [] },
+      );
+      expect(result.flags.tag).toEqual(["x"]);
+    });
+
+    it("validates each value against choices", () => {
+      expect(() =>
+        parseArgs(
+          { env: { type: "string", multiple: true, choices: ["dev", "prod"] } },
+          { args: ["--env", "dev", "--env", "stage"] },
+        ),
+      ).toThrow(/Invalid value "stage"/);
+    });
+
+    it("coerces numbers in array flags", () => {
+      const result = parseArgs(
+        { port: { type: "number", multiple: true } },
+        { args: ["--port", "1", "--port", "2"] },
+      );
+      expect(result.flags.port).toEqual([1, 2]);
+    });
+  });
+
+  describe("--no-foo negation (B13)", () => {
+    it("--no-flag sets a boolean to false", () => {
+      const result = parseArgs(
+        { verbose: { type: "boolean", default: true } },
+        { args: ["--no-verbose"] },
+      );
+      expect(result.flags.verbose).toBe(false);
+    });
+
+    it("--no-foo on non-boolean is treated as unknown", () => {
+      const result = parseArgs({ name: { type: "string" } }, { args: ["--no-name"] });
+      expect(result.unknown).toContain("no-name");
+    });
+
+    it("--no-foo on alias works via canonical name", () => {
+      const result = parseArgs(
+        { verbose: { type: "boolean", alias: "v", default: true } },
+        { args: ["--no-verbose"] },
+      );
+      expect(result.flags.verbose).toBe(false);
+    });
+  });
+
+  describe("ArgError context", () => {
+    it("exposes the offending flag name on ArgError", () => {
+      try {
+        parseArgs({ port: { type: "number" } }, { args: ["--port", "abc"] });
+      } catch (e) {
+        expect(e).toBeInstanceOf(ArgError);
+        expect((e as ArgError).flag).toBe("port");
+        return;
+      }
+      throw new Error("expected throw");
+    });
+  });
+
+  describe("input hardening", () => {
+    it("does not allow polluting Object.prototype via flag names", () => {
+      parseArgs(
+        { __proto__: { type: "string" } as never },
+        { args: ["--__proto__=polluted"], allowUnknown: true },
+      );
+      // Should not pollute Object.prototype
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+      // A fresh object should not have an inherited "__proto__" data property
+      const fresh: Record<string, unknown> = {};
+      expect(Object.getPrototypeOf(fresh)).toBe(Object.prototype);
+    });
+  });
+
+  describe("type inference (S1)", () => {
+    it("infers flag value types from ArgDef", () => {
+      const result = parseArgs(
+        {
+          port: { type: "number", default: 3000 },
+          host: { type: "string", default: "localhost" },
+          verbose: { type: "boolean" },
+          tags: { type: "string", multiple: true },
+        } as const,
+        { args: ["--port", "8080", "--verbose", "--tags", "a"] },
+      );
+      // Compile-time: these accesses must not produce union types.
+      const port: number = result.flags.port;
+      const host: string = result.flags.host;
+      const verbose: boolean = result.flags.verbose;
+      const tags: readonly string[] = result.flags.tags;
+      expect(port).toBe(8080);
+      expect(host).toBe("localhost");
+      expect(verbose).toBe(true);
+      expect(tags).toEqual(["a"]);
+    });
+  });
+
   describe("edge cases", () => {
     it("should handle empty args", () => {
       const result = parseArgs({}, { args: [] });

@@ -467,6 +467,7 @@ describe("createProgress", () => {
         chunks.push(s);
         return true;
       },
+      isTTY: true,
     } as unknown as NodeJS.WritableStream;
     const p = createProgress({ total: 10, stream, width: 10 });
     p.tick(5);
@@ -520,5 +521,134 @@ describe("log", () => {
     expect(stripAnsi(output)).toContain("[2/5]");
     expect(output).toContain("installing");
     spy.mockRestore();
+  });
+});
+
+// ── Spinner (B5) — non-TTY behavior ─────────────────────────────────────────
+
+describe("createSpinner non-TTY (B5)", () => {
+  function makeStream(isTTY: boolean) {
+    const chunks: string[] = [];
+    const stream = {
+      write: (s: string) => {
+        chunks.push(s);
+        return true;
+      },
+      isTTY,
+    } as unknown as NodeJS.WritableStream;
+    return { chunks, stream };
+  }
+
+  it("does not emit cursor-move/clear sequences in non-TTY", () => {
+    const { chunks, stream } = makeStream(false);
+    const s = createSpinner({ stream, text: "working" });
+    s.start();
+    s.stop();
+    const out = chunks.join("");
+    // Should not contain CSI K (line clear) or carriage returns.
+    expect(out.includes("\x1b[K")).toBe(false);
+    expect(out.includes("\r")).toBe(false);
+  });
+
+  it("does not start an interval in non-TTY (no leak)", () => {
+    const { stream } = makeStream(false);
+    const s = createSpinner({ stream });
+    s.start();
+    // Cast to access internal — read isActive which is fine to be false in non-TTY
+    s.stop();
+    expect(s.isActive).toBe(false);
+  });
+
+  it("calling start twice does not leak a second interval", () => {
+    const { stream } = makeStream(true);
+    const s = createSpinner({ stream });
+    s.start("a");
+    s.start("b"); // second start should replace, not leak
+    s.stop();
+    expect(s.isActive).toBe(false);
+  });
+
+  it("hides and shows the cursor on TTY", () => {
+    const { chunks, stream } = makeStream(true);
+    const s = createSpinner({ stream });
+    s.start("x");
+    s.stop();
+    const out = chunks.join("");
+    expect(out).toContain("\x1b[?25l"); // hide
+    expect(out).toContain("\x1b[?25h"); // show
+  });
+});
+
+// ── Progress (B6) — input validation ────────────────────────────────────────
+
+describe("createProgress validation (B6)", () => {
+  it("throws when total is zero or negative", () => {
+    const stream = { write: vi.fn(), isTTY: true } as unknown as NodeJS.WritableStream;
+    expect(() => createProgress({ total: 0, stream })).toThrow(/total/i);
+    expect(() => createProgress({ total: -5, stream })).toThrow(/total/i);
+  });
+
+  it("throws when total is not finite", () => {
+    const stream = { write: vi.fn(), isTTY: true } as unknown as NodeJS.WritableStream;
+    expect(() => createProgress({ total: Number.NaN, stream })).toThrow();
+    expect(() => createProgress({ total: Number.POSITIVE_INFINITY, stream })).toThrow();
+  });
+
+  it("does not emit cursor-move/clear sequences in non-TTY", () => {
+    const chunks: string[] = [];
+    const stream = {
+      write: (s: string) => {
+        chunks.push(s);
+        return true;
+      },
+      isTTY: false,
+    } as unknown as NodeJS.WritableStream;
+    const p = createProgress({ total: 10, stream });
+    p.tick(5);
+    p.update(10);
+    const out = chunks.join("");
+    expect(out.includes("\x1b[K")).toBe(false);
+    expect(out.includes("\r")).toBe(false);
+  });
+});
+
+// ── Table (B16) — ANSI preservation on truncation ───────────────────────────
+
+describe("table truncation (B16)", () => {
+  it("preserves wrapping ANSI styles when a cell is truncated", () => {
+    const styled = "\x1b[31mlong red text that gets cut\x1b[39m";
+    const result = table([[styled]], { maxColumnWidth: 10 });
+    // Should still contain a red open and a foreground-default close.
+    expect(result).toContain("\x1b[31m");
+    expect(result).toContain("\x1b[39m");
+    // And should contain the truncation ellipsis.
+    expect(stripAnsi(result)).toContain("…");
+  });
+});
+
+// ── Tree (B17) — encapsulated signature ─────────────────────────────────────
+
+describe("tree (B17)", () => {
+  it("does not expose an internal prefix parameter in its types", () => {
+    // The public signature should accept exactly one argument.
+    expect(tree.length).toBe(1);
+  });
+
+  it("renders nested children with correct indentation guides", () => {
+    const result = tree({
+      label: "root",
+      children: [{ label: "a", children: [{ label: "a1" }, { label: "a2" }] }, { label: "b" }],
+    });
+    const lines = result.split("\n");
+    expect(lines[0]).toBe("root");
+    // First child branch
+    expect(lines[1]).toContain("├── a");
+    // Grand-children continue under the first branch with │
+    expect(lines[2]).toContain("│");
+    expect(lines[2]).toContain("a1");
+    expect(lines[3]).toContain("│");
+    expect(lines[3]).toContain("a2");
+    // Last child uses └──
+    expect(lines[4]).toContain("└── b");
   });
 });

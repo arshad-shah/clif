@@ -27,6 +27,7 @@ export {
   multiselect,
   number,
   group,
+  PromptError,
 } from "./prompts/prompts.js";
 
 export type {
@@ -37,4 +38,5 @@ export type {
   SelectOptions,
   MultiSelectOptions,
   NumberOptions,
+  PromptErrorCode,
 } from "./prompts/prompts.js";
