@@ -10,14 +10,11 @@ clif's argument parser is fast, correct, and requires no configuration objects b
 ```typescript
 import { parseArgs } from "@arshad-shah/clif";
 
-const result = parseArgs(
-  {
-    name: { type: "string", alias: "n", description: "Your name" },
-    port: { type: "number", alias: "p", default: 3000 },
-    verbose: { type: "boolean", alias: "v" },
-  },
-  { args: process.argv.slice(2) },
-);
+const result = parseArgs({
+  name: { type: "string", alias: "n", description: "Your name" },
+  port: { type: "number", alias: "p", default: 3000 },
+  verbose: { type: "boolean", alias: "v" },
+});
 
 result.flags.name; // string
 result.flags.port; // number
@@ -26,6 +23,8 @@ result.positional; // string[] — non-flag tokens
 result.rest; // string[] — everything after `--`
 result.unknown; // string[] — flags not defined in your schema
 ```
+
+`parseArgs` defaults to `process.argv.slice(2)`. Pass `{ args: [...] }` only when you want to override — useful for tests, scripted invocations, or parsing a string you've already tokenised.
 
 When you pass the defs as `as const`, the return type of `result.flags.*` is fully inferred — no casts needed.
 
