@@ -1,0 +1,29 @@
+{
+  "name": "@clif/example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "End-to-end example CLI that exercises every clif feature.",
+  "type": "module",
+  "bin": {
+    "kit": "./src/index.ts"
+  },
+  "scripts": {
+    "predev": "pnpm --filter clif build",
+    "prestart": "pnpm --filter clif build",
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "clif": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  },
+  "volta": {
+    "node": "24.15.0",
+    "pnpm": "11.1.2"
+  }
+}
