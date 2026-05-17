@@ -146,7 +146,7 @@ describe("formatBytes", () => {
 
 // ── formatDuration ──────────────────────────────────────────────────────────
 
-describe("truncate (B8) — ANSI-aware", () => {
+describe("truncate — ANSI-aware", () => {
   it("counts visible width, not raw byte length", () => {
     const styled = "\x1b[31mhello world\x1b[39m";
     const result = truncate(styled, 7);
@@ -163,7 +163,7 @@ describe("truncate (B8) — ANSI-aware", () => {
   });
 });
 
-describe("wordWrap (B8) — ANSI-aware", () => {
+describe("wordWrap — ANSI-aware", () => {
   it("wraps based on visible width, ignoring ANSI escapes", () => {
     const styled = "\x1b[31mhello\x1b[39m world foo";
     const result = wordWrap(styled, 11);
@@ -175,7 +175,7 @@ describe("wordWrap (B8) — ANSI-aware", () => {
   });
 });
 
-describe("formatBytes edge cases (B18)", () => {
+describe("formatBytes edge cases", () => {
   it("handles negative numbers without infinite-looping", () => {
     expect(formatBytes(-512)).toBe("-512 B");
   });
@@ -204,5 +204,21 @@ describe("formatDuration", () => {
 
   it("formats just under 1 second", () => {
     expect(formatDuration(999)).toBe("999ms");
+  });
+
+  describe("non-finite inputs", () => {
+    it("returns a sensible string for NaN", () => {
+      const result = formatDuration(Number.NaN);
+      expect(result).not.toContain("NaNm");
+      expect(result).not.toContain("NaNs");
+      expect(result.toLowerCase()).toContain("nan");
+    });
+
+    it("returns a sensible string for Infinity", () => {
+      const result = formatDuration(Number.POSITIVE_INFINITY);
+      expect(result).not.toContain("Infinitym");
+      expect(result).not.toContain("NaNs");
+      expect(result.toLowerCase()).toContain("infinity");
+    });
   });
 });

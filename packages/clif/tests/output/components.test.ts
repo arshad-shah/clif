@@ -524,9 +524,9 @@ describe("log", () => {
   });
 });
 
-// ── Spinner (B5) — non-TTY behavior ─────────────────────────────────────────
+// ── Spinner — non-TTY behavior ──────────────────────────────────────────────
 
-describe("createSpinner non-TTY (B5)", () => {
+describe("createSpinner non-TTY", () => {
   function makeStream(isTTY: boolean) {
     const chunks: string[] = [];
     const stream = {
@@ -579,9 +579,9 @@ describe("createSpinner non-TTY (B5)", () => {
   });
 });
 
-// ── Progress (B6) — input validation ────────────────────────────────────────
+// ── Progress — input validation ─────────────────────────────────────────────
 
-describe("createProgress validation (B6)", () => {
+describe("createProgress validation", () => {
   it("throws when total is zero or negative", () => {
     const stream = { write: vi.fn(), isTTY: true } as unknown as NodeJS.WritableStream;
     expect(() => createProgress({ total: 0, stream })).toThrow(/total/i);
@@ -612,9 +612,9 @@ describe("createProgress validation (B6)", () => {
   });
 });
 
-// ── Table (B16) — ANSI preservation on truncation ───────────────────────────
+// ── Table — ANSI preservation on truncation ─────────────────────────────────
 
-describe("table truncation (B16)", () => {
+describe("table truncation", () => {
   it("preserves wrapping ANSI styles when a cell is truncated", () => {
     const styled = "\x1b[31mlong red text that gets cut\x1b[39m";
     const result = table([[styled]], { maxColumnWidth: 10 });
@@ -626,9 +626,90 @@ describe("table truncation (B16)", () => {
   });
 });
 
-// ── Tree (B17) — encapsulated signature ─────────────────────────────────────
+// ── Divider — long label must not crash ─────────────────────────────────────
 
-describe("tree (B17)", () => {
+describe("divider long label", () => {
+  it("does not throw when the label is wider than the divider width", () => {
+    expect(() => divider({ label: "WAY-TOO-LONG-LABEL", width: 5 })).not.toThrow();
+  });
+
+  it("returns the label intact (no negative repeat) when label > width", () => {
+    const result = stripAnsi(divider({ label: "BIG", width: 3 }));
+    expect(result).toContain("BIG");
+  });
+});
+
+// ── Progress format — replace ALL placeholder occurrences ───────────────────
+
+describe("progress format placeholders", () => {
+  it("replaces every occurrence of :percent, :current, :total, :bar", () => {
+    const chunks: string[] = [];
+    const stream = {
+      write: (s: string) => {
+        chunks.push(s);
+        return true;
+      },
+      isTTY: true,
+    } as unknown as NodeJS.WritableStream;
+    const p = createProgress({
+      total: 10,
+      stream,
+      format: ":percent — :percent (:current of :total, :current done)",
+      width: 4,
+    });
+    p.update(5);
+    const out = stripAnsi(chunks.join(""));
+    // No placeholder tokens should survive.
+    expect(out).not.toContain(":percent");
+    expect(out).not.toContain(":current");
+    expect(out).not.toContain(":total");
+    // Both percent instances should have rendered to "50%".
+    expect(out.match(/50%/g)?.length ?? 0).toBe(2);
+    // Both current instances should render to "5".
+    expect(out.match(/\b5\b/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ── Box — long title must keep borders aligned ──────────────────────────────
+
+describe("box long title", () => {
+  it("keeps top and bottom border the same visible length when title > content", () => {
+    const out = stripAnsi(box("hi", { title: "Very Long Title That Exceeds Content" }));
+    const lines = out.split("\n").filter(Boolean);
+    const top = lines[0]!;
+    const bottom = lines[lines.length - 1]!;
+    expect(top.length).toBe(bottom.length);
+  });
+
+  it("widens content area to accommodate a long title", () => {
+    const out = stripAnsi(box("x", { title: "AAAAAAAAAA" }));
+    const lines = out.split("\n").filter(Boolean);
+    // Content lines (the ones with x or padding) should be the same width as the borders.
+    const lengths = lines.map((l) => l.length);
+    expect(new Set(lengths).size).toBe(1);
+  });
+});
+
+// ── Table compact — suppresses header separator row ─────────────────────────
+
+describe("table compact", () => {
+  it("omits the header separator row when compact: true", () => {
+    const out = stripAnsi(table([["a", "b"]], { headers: ["H1", "H2"], compact: true }));
+    const lines = out.split("\n");
+    // Without compact, lines[2] would be the header separator (├ … ┤).
+    // With compact, the header row should be followed directly by the data row.
+    expect(lines.some((l) => l.startsWith("├"))).toBe(false);
+  });
+
+  it("keeps the header separator row by default", () => {
+    const out = stripAnsi(table([["a", "b"]], { headers: ["H1", "H2"] }));
+    expect(out.split("\n").some((l) => l.startsWith("├"))).toBe(true);
+  });
+});
+
+// ── Tree — encapsulated signature ───────────────────────────────────────────
+
+describe("tree signature", () => {
   it("does not expose an internal prefix parameter in its types", () => {
     // The public signature should accept exactly one argument.
     expect(tree.length).toBe(1);

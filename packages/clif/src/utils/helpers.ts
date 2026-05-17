@@ -115,6 +115,7 @@ export function formatBytes(bytes: number): string {
 
 /** Format milliseconds to human-readable */
 export function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms)) return String(ms);
   if (ms < 1000) return `${ms}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   const mins = Math.floor(ms / 60_000);

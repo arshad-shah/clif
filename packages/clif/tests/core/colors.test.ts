@@ -245,15 +245,45 @@ describe("colors", () => {
       expect(bgHex("#0000ff")("hello")).toBe("\x1b[48;2;0;0;255mhello\x1b[49m");
     });
 
-    it("throws on invalid hex strings (B9)", () => {
+    it("throws on invalid hex strings", () => {
       expect(() => hex("xyz")).toThrow(/hex/i);
       expect(() => hex("#zzzzzz")).toThrow(/hex/i);
       expect(() => hex("#fff")).toThrow(/hex/i); // we require 6 digits
       expect(() => bgHex("not-a-hex")).toThrow(/hex/i);
     });
 
-    it("throws on null/undefined hex inputs (B9)", () => {
+    it("throws on null/undefined hex inputs", () => {
       expect(() => hex(undefined as unknown as string)).toThrow();
+    });
+  });
+
+  describe("rgb / rgb256 range validation", () => {
+    it("rgb256 throws on values outside 0–255", () => {
+      expect(() => rgb256(-1)).toThrow(RangeError);
+      expect(() => rgb256(256)).toThrow(RangeError);
+      expect(() => rgb256(300)).toThrow(RangeError);
+    });
+
+    it("bgRgb256 throws on values outside 0–255", () => {
+      expect(() => bgRgb256(-1)).toThrow(RangeError);
+      expect(() => bgRgb256(256)).toThrow(RangeError);
+    });
+
+    it("rgb throws on any channel outside 0–255", () => {
+      expect(() => rgb(-1, 0, 0)).toThrow(RangeError);
+      expect(() => rgb(0, 256, 0)).toThrow(RangeError);
+      expect(() => rgb(0, 0, 999)).toThrow(RangeError);
+    });
+
+    it("bgRgb throws on any channel outside 0–255", () => {
+      expect(() => bgRgb(0, 0, 256)).toThrow(RangeError);
+    });
+
+    it("rgb256(255) and rgb(255,255,255) still work", () => {
+      colorLevel(2);
+      expect(rgb256(255)("x")).toBe("\x1b[38;5;255mx\x1b[39m");
+      colorLevel(3);
+      expect(rgb(255, 255, 255)("x")).toBe("\x1b[38;2;255;255;255mx\x1b[39m");
     });
   });
 

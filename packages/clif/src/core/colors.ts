@@ -109,8 +109,15 @@ export const bgWhiteBright: Formatter = fmt("107", "49");
 
 // ── Extended colors ─────────────────────────────────────────────────────────
 
+function assertByte(label: string, n: number): void {
+  if (!Number.isInteger(n) || n < 0 || n > 255) {
+    throw new RangeError(`${label}: expected an integer in [0, 255], got ${String(n)}`);
+  }
+}
+
 /** 256-color foreground (0–255) */
 export function rgb256(code: number): Formatter {
+  assertByte("rgb256", code);
   return (text: string) => {
     if (_level < 2) return text;
     return `\x1b[38;5;${code}m${text}\x1b[39m`;
@@ -119,6 +126,7 @@ export function rgb256(code: number): Formatter {
 
 /** 256-color background (0–255) */
 export function bgRgb256(code: number): Formatter {
+  assertByte("bgRgb256", code);
   return (text: string) => {
     if (_level < 2) return text;
     return `\x1b[48;5;${code}m${text}\x1b[49m`;
@@ -127,6 +135,9 @@ export function bgRgb256(code: number): Formatter {
 
 /** Truecolor foreground */
 export function rgb(r: number, g: number, b: number): Formatter {
+  assertByte("rgb.r", r);
+  assertByte("rgb.g", g);
+  assertByte("rgb.b", b);
   return (text: string) => {
     if (_level < 3) return text;
     return `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
@@ -135,6 +146,9 @@ export function rgb(r: number, g: number, b: number): Formatter {
 
 /** Truecolor background */
 export function bgRgb(r: number, g: number, b: number): Formatter {
+  assertByte("bgRgb.r", r);
+  assertByte("bgRgb.g", g);
+  assertByte("bgRgb.b", b);
   return (text: string) => {
     if (_level < 3) return text;
     return `\x1b[48;2;${r};${g};${b}m${text}\x1b[49m`;

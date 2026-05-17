@@ -13,7 +13,7 @@ import { ... } from "@arshad-shah/clif";
 import { ... } from "@arshad-shah/clif/prompts";
 ```
 
-## `clif` exports
+## `@arshad-shah/clif` exports
 
 ### Colors
 
@@ -27,19 +27,22 @@ import { ... } from "@arshad-shah/clif/prompts";
 `compose(...formatters)`, `stripAnsi(text)`, `visibleLength(text)`
 `colorLevel(level?)`, `isColorSupported()`
 
+`rgb256` / `bgRgb256` accept integers in `[0, 255]`; `rgb` / `bgRgb` accept the same range per channel. `hex` / `bgHex` require a 6-digit value with or without the leading `#`. Out-of-range or malformed input throws `RangeError`.
+
 ### Argument parsing
 
 `parseArgs(defs, opts?)` → `ParsedArgs { flags, positional, rest, unknown }`
-`ArgError` — thrown on validation failures
+`ArgError` — thrown on validation failures (exposes `.flag` for the offending name)
 
 ### Command system
 
 `createCLI(def)` → `{ run(opts?), command }`
+`defineCommand(def)` → `def` — identity helper for type inference on nested command literals.
 
 ### Output components
 
 `box(content, opts?)`, `table(rows, opts?)`, `keyValue(data, opts?)`,
-`list(items, opts?)`, `tree(root, prefix?)`,
+`list(items, opts?)`, `tree(root)`,
 `divider(opts?)`, `banner(text, opts?)`,
 `createSpinner(opts?)`, `createProgress(opts?)`,
 `log.info(msg)`, `log.success(msg)`, `log.warn(msg)`, `log.error(msg)`, `log.debug(msg)`, `log.step(n, total, msg)`
@@ -50,13 +53,16 @@ import { ... } from "@arshad-shah/clif/prompts";
 `wordWrap(text, width)`, `indent(text, spaces)`, `dedent(str)`,
 `formatBytes(bytes)`, `formatDuration(ms)`
 
-## `clif/prompts` exports
+## `@arshad-shah/clif/prompts` exports
 
 `text(opts)`, `password(opts)`, `confirm(opts)`, `select(opts)`, `multiselect(opts)`, `number(opts)`, `group(prompts)`
+`PromptError` — thrown on user cancellation (`code: "cancelled"`) or non-TTY stdin (`code: "not-a-tty"`).
 
 ## Types
 
 `Formatter`, `BoxBorder`, `BoxOptions`, `TableOptions`, `KeyValueOptions`, `ListOptions`,
 `TreeNode`, `SpinnerOptions`, `ProgressOptions`,
-`ArgDef`, `ParsedArgs`, `ParseOptions`, `CommandDef`, `CommandContext`, `RunOptions`,
-`TextOptions`, `PasswordOptions`, `ConfirmOptions`, `SelectOptions`, `MultiselectOptions`, `NumberOptions`, `SelectOption`
+`ArgDef`, `ParsedArgs`, `ParseOptions`, `FlagValueOf`, `FlagsFromDefs`,
+`CommandDef`, `CommandContext`, `RunOptions`,
+`TextOptions`, `PasswordOptions`, `ConfirmOptions`, `SelectOption`, `SelectOptions`, `MultiSelectOptions`, `NumberOptions`,
+`PromptErrorCode`

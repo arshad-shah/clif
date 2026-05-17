@@ -38,14 +38,14 @@ box("Content", {
 
 ## Options
 
-| Option        | Type                            | Default   | Description         |
-| ------------- | ------------------------------- | --------- | ------------------- |
-| `border`      | `BoxBorder`                     | `"round"` | Border style        |
-| `title`       | `string`                        | —         | Title in top border |
-| `padding`     | `number`                        | `1`       | Inner padding       |
-| `margin`      | `number`                        | `0`       | Outer margin        |
-| `width`       | `number`                        | auto      | Minimum width       |
-| `align`       | `"left" \| "center" \| "right"` | `"left"`  | Alignment           |
-| `borderColor` | `Formatter`                     | identity  | Border color        |
-| `titleColor`  | `Formatter`                     | `bold`    | Title color         |
-| `dimBorder`   | `boolean`                       | `false`   | Dim the border      |
+| Option        | Type                            | Default   | Description                                                           |
+| ------------- | ------------------------------- | --------- | --------------------------------------------------------------------- |
+| `border`      | `BoxBorder`                     | `"round"` | Border style                                                          |
+| `title`       | `string`                        | —         | Title in top border                                                   |
+| `padding`     | `number`                        | `1`       | Inner padding                                                         |
+| `margin`      | `number`                        | `0`       | Outer margin                                                          |
+| `width`       | `number`                        | auto      | Minimum inner width (the box also auto-expands to fit a long `title`) |
+| `align`       | `"left" \| "center" \| "right"` | `"left"`  | Alignment                                                             |
+| `borderColor` | `Formatter`                     | identity  | Border color                                                          |
+| `titleColor`  | `Formatter`                     | `bold`    | Title color                                                           |
+| `dimBorder`   | `boolean`                       | `false`   | Dim the border                                                        |

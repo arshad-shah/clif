@@ -6,6 +6,7 @@ import {
   __testing,
   confirm,
   multiselect,
+  number,
   password,
   select,
   text,
@@ -61,7 +62,7 @@ function fakeStdio(opts: { isTTY?: boolean } = {}) {
   };
 }
 
-describe("password (B7)", () => {
+describe("password", () => {
   it("rejects non-TTY stdin with a clear error", async () => {
     const { stdio } = fakeStdio({ isTTY: false });
     __testing.setStdio(stdio);
@@ -109,7 +110,7 @@ describe("text", () => {
   });
 });
 
-describe("confirm (B14)", () => {
+describe("confirm", () => {
   it("rejects with PromptError on Ctrl+C", async () => {
     const { stdio, pushKey } = fakeStdio({ isTTY: true });
     __testing.setStdio(stdio);
@@ -129,7 +130,7 @@ describe("confirm (B14)", () => {
   });
 });
 
-describe("select (B10)", () => {
+describe("select", () => {
   it("does NOT treat Space as confirm", async () => {
     const { stdio, pushKey } = fakeStdio({ isTTY: true });
     __testing.setStdio(stdio);
@@ -160,7 +161,33 @@ describe("select (B10)", () => {
   });
 });
 
-describe("multiselect (B11)", () => {
+describe("number step", () => {
+  it("rejects values that are not multiples of step, then accepts a multiple", async () => {
+    const { stdio, chunks, pushLine } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = number({ message: "n", min: 0, max: 100, step: 5 });
+    pushLine("7"); // not a multiple of 5 — should re-prompt with an error
+    // Let the validation reject + re-prompt re-attach its "line" listener
+    // before we push the next value.
+    await new Promise((r) => setImmediate(r));
+    pushLine("10");
+    const value = await p;
+    __testing.resetStdio();
+    expect(value).toBe(10);
+    expect(chunks.join("").toLowerCase()).toMatch(/multiple of 5|step/);
+  });
+
+  it("accepts a value with step undefined", async () => {
+    const { stdio, pushLine } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = number({ message: "n", min: 0, max: 100 });
+    pushLine("7");
+    expect(await p).toBe(7);
+    __testing.resetStdio();
+  });
+});
+
+describe("multiselect", () => {
   it("shows a visible error and blocks Enter when min not met", async () => {
     const { stdio, chunks, pushKey } = fakeStdio({ isTTY: true });
     __testing.setStdio(stdio);

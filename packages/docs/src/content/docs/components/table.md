@@ -48,10 +48,10 @@ table([["data"]], { headers: ["Column"], headerColor: cyan });
 
 ## Options
 
-| Option           | Type        | Default | Description       |
-| ---------------- | ----------- | ------- | ----------------- |
-| `headers`        | `string[]`  | —       | Column headers    |
-| `border`         | `boolean`   | `true`  | Show borders      |
-| `headerColor`    | `Formatter` | `bold`  | Header text style |
-| `compact`        | `boolean`   | `false` | Compact layout    |
-| `maxColumnWidth` | `number`    | —       | Truncate columns  |
+| Option           | Type        | Default | Description                                        |
+| ---------------- | ----------- | ------- | -------------------------------------------------- |
+| `headers`        | `string[]`  | —       | Column headers                                     |
+| `border`         | `boolean`   | `true`  | Show borders                                       |
+| `headerColor`    | `Formatter` | `bold`  | Header text style                                  |
+| `compact`        | `boolean`   | `false` | Suppress the separator row between header and body |
+| `maxColumnWidth` | `number`    | —       | Truncate columns                                   |

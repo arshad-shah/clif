@@ -97,8 +97,22 @@ export function parseArgs(defs: Record<string, ArgDef>, opts: ParseOptions = {})
 
   // Populate defaults and build alias map
   for (const [name, def] of Object.entries(defs)) {
-    if (def.default !== undefined) flags[name] = def.default as FlagValue;
-    else if (def.multiple) flags[name] = [];
+    if (def.default !== undefined) {
+      // A default that violates `choices` is a configuration bug — fail loudly
+      // instead of letting an invalid value silently flow through to the handler.
+      if (def.choices) {
+        const values = Array.isArray(def.default) ? def.default : [def.default];
+        for (const v of values) {
+          if (!def.choices.includes(v as string | number)) {
+            throw new ArgError(
+              `Default value "${String(v)}" for --${name} is not one of the choices: ${def.choices.join(", ")}`,
+              name,
+            );
+          }
+        }
+      }
+      flags[name] = def.default as FlagValue;
+    } else if (def.multiple) flags[name] = [];
     if (def.alias) aliasMap.set(def.alias, name);
   }
 
@@ -115,6 +129,11 @@ export function parseArgs(defs: Record<string, ArgDef>, opts: ParseOptions = {})
     if (!def) return value;
     switch (def.type) {
       case "number": {
+        // An empty string would silently coerce to 0 via Number("") — treat
+        // `--port=` as a missing value instead of accepting a phantom zero.
+        if (value === "") {
+          throw new ArgError(`Missing value for --${name}`, name);
+        }
         const n = Number(value);
         if (!Number.isFinite(n)) {
           throw new ArgError(`Expected number for --${name}, got "${value}"`, name);
@@ -152,14 +171,15 @@ export function parseArgs(defs: Record<string, ArgDef>, opts: ParseOptions = {})
   }
 
   /**
-   * `-12` and `-3.14` should be consumable as VALUES, not parsed as flags.
-   * A bare `-` is not a flag either. Anything else that starts with `-` is.
+   * `-12`, `-3.14`, and `-1e3` should be consumable as VALUES, not parsed as
+   * flags. A bare `-` is not a flag either. Anything else that starts with
+   * `-` is treated as a flag.
    */
   function looksLikeFlag(token: string | undefined): boolean {
     if (token === undefined) return false;
     if (token.length < 2 || token[0] !== "-") return false;
-    // Negative number literal — treat as a value, not a flag.
-    if (/^-\d+(\.\d+)?$/.test(token)) return false;
+    // Negative number literal (including scientific notation) — treat as a value.
+    if (/^-\d+(\.\d+)?([eE][+-]?\d+)?$/.test(token)) return false;
     return true;
   }
 
@@ -185,7 +205,20 @@ export function parseArgs(defs: Record<string, ArgDef>, opts: ParseOptions = {})
     if (arg.startsWith("--")) {
       const eqIdx = arg.indexOf("=");
       if (eqIdx !== -1) {
-        const rawName = resolveName(arg.slice(2, eqIdx));
+        const rawNameLiteral = arg.slice(2, eqIdx);
+        // `--no-foo=…` is ambiguous: the user wrote the negation form AND
+        // supplied a value. Reject loudly when foo is a known boolean instead
+        // of silently dropping the directive into `unknown`.
+        if (rawNameLiteral.startsWith("no-")) {
+          const candidate = resolveName(rawNameLiteral.slice(3));
+          if (hasDef(candidate) && defs[candidate]!.type === "boolean") {
+            throw new ArgError(
+              `Cannot pass a value to negation flag --${rawNameLiteral}. Use --${candidate}=<value> or --${rawNameLiteral} (no value).`,
+              candidate,
+            );
+          }
+        }
+        const rawName = resolveName(rawNameLiteral);
         const val = arg.slice(eqIdx + 1);
         if (isPrototypePollutionKey(rawName)) {
           unknown.push(rawName);

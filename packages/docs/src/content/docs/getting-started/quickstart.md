@@ -30,9 +30,11 @@ const cli = createCLI({
       alias: "l",
       description: "Shout the greeting",
     },
-  },
+  } as const,
   handler: (ctx) => {
-    const name = ctx.args.flags.name as string;
+    // `flags.name` is `string`, `flags.loud` is `boolean` — fully inferred
+    // from the `as const` on the `args` object above.
+    const name = ctx.args.flags.name;
     let greeting = `Hello, ${green(name)}!`;
     if (ctx.args.flags.loud) greeting = bold(greeting.toUpperCase());
 

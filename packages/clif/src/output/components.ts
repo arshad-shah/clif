@@ -14,10 +14,10 @@ import {
   dim,
   green,
   red,
-  stripAnsi,
   visibleLength,
   yellow,
 } from "../core/colors.js";
+import { truncate } from "../utils/helpers.js";
 
 // ── Box ─────────────────────────────────────────────────────────────────────
 
@@ -62,14 +62,19 @@ export function box(content: string, opts: BoxOptions = {}): string {
 
   const lines = content.split("\n");
   const maxContent = Math.max(...lines.map(visibleLength));
-  const innerWidth = Math.max(opts.width ?? 0, maxContent + padding * 2);
-
-  const padStr = " ".repeat(padding);
-  const marginStr = " ".repeat(margin);
 
   // Title in top border
   const titleStr = opts.title ? ` ${titleColor(opts.title)} ` : "";
   const titleLen = opts.title ? visibleLength(titleStr) : 0;
+
+  // The inner width must also fit the title; otherwise the top border (which
+  // embeds the title) ends up longer than the bottom and the box looks
+  // lopsided. Account for the explicit `width` option, the content, and the
+  // title length all at once.
+  const innerWidth = Math.max(opts.width ?? 0, maxContent + padding * 2, titleLen);
+
+  const padStr = " ".repeat(padding);
+  const marginStr = " ".repeat(margin);
 
   const topFill = b.h.repeat(Math.max(0, innerWidth - titleLen));
   const top = `${marginStr}${applyBorder(b.tl)}${titleStr}${applyBorder(topFill + b.tr)}`;
@@ -115,42 +120,9 @@ export interface TableOptions {
   headers?: string[];
   border?: boolean;
   headerColor?: Formatter;
+  /** Suppress the separator row between header and body for a denser layout. */
   compact?: boolean;
   maxColumnWidth?: number;
-}
-
-/**
- * Truncate an ANSI-styled cell to a visible-column width while preserving
- * the surrounding escape codes.
- */
-function truncateAnsi(text: string, max: number, suffix = "…"): string {
-  if (visibleLength(text) <= max) return text;
-  const limit = Math.max(0, max - suffix.length);
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: stripping ANSI escapes.
-  const ANSI = /\x1b\[[0-9;]*m/g;
-  let visible = 0;
-  let out = "";
-  let i = 0;
-  while (i < text.length && visible < limit) {
-    ANSI.lastIndex = i;
-    const m = ANSI.exec(text);
-    if (m && m.index === i) {
-      out += m[0];
-      i = m.index + m[0].length;
-      continue;
-    }
-    out += text[i];
-    visible++;
-    i++;
-  }
-  // Collect any remaining ANSI close codes (e.g. resets) so styling terminates cleanly.
-  ANSI.lastIndex = i;
-  let m: RegExpExecArray | null = ANSI.exec(text);
-  while (m) {
-    out += m[0];
-    m = ANSI.exec(text);
-  }
-  return out + suffix;
 }
 
 export function table(rows: string[][], opts: TableOptions = {}): string {
@@ -186,9 +158,7 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
     const cells = widths.map((w, c) => {
       const raw = row[c] ?? "";
       const trimmed =
-        maxColumnWidth && visibleLength(raw) > maxColumnWidth
-          ? truncateAnsi(raw, maxColumnWidth)
-          : raw;
+        maxColumnWidth && visibleLength(raw) > maxColumnWidth ? truncate(raw, maxColumnWidth) : raw;
       const padded = trimmed + " ".repeat(Math.max(0, w - visibleLength(trimmed)));
       return isHeader ? headerColor(padded) : padded;
     });
@@ -199,9 +169,7 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
       lines.push(`  ${cells.join("  ")}  `);
     }
 
-    if (isHeader) lines.push(midSep);
-    // Reserved for future per-row separator support when !compact.
-    void compact;
+    if (isHeader && !compact && border) lines.push(midSep);
   }
 
   if (border) lines.push(bottomSep);
@@ -418,10 +386,10 @@ export function createProgress(opts: ProgressOptions) {
     const bar = color(complete.repeat(filled)) + dim(incomplete.repeat(empty));
     const percent = `${Math.round(ratio * 100)}%`;
     return format
-      .replace(":bar", bar)
-      .replace(":percent", percent)
-      .replace(":current", String(current))
-      .replace(":total", String(total));
+      .replaceAll(":bar", bar)
+      .replaceAll(":percent", percent)
+      .replaceAll(":current", String(current))
+      .replaceAll(":total", String(total));
   }
 
   function render() {
@@ -462,7 +430,9 @@ export function divider(
   const { width = 60, char = "─", color: colorFn = dim, label } = opts;
   if (label) {
     const labelStr = ` ${label} `;
-    const remaining = width - labelStr.length;
+    // Clamp to 0 so a label wider than `width` doesn't pass a negative count
+    // to String.repeat (which throws RangeError).
+    const remaining = Math.max(0, width - labelStr.length);
     const left = Math.floor(remaining / 2);
     const right = remaining - left;
     return colorFn(char.repeat(left)) + labelStr + colorFn(char.repeat(right));
@@ -492,6 +462,3 @@ export const log = {
   step: (n: number, total: number, msg: string) =>
     process.stdout.write(`${dim(`[${n}/${total}]`)} ${msg}\n`),
 };
-
-// Suppress unused-import warning when stripAnsi is only used indirectly via visibleLength.
-void stripAnsi;

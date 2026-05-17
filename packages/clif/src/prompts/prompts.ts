@@ -577,6 +577,18 @@ export async function number(opts: NumberOptions): Promise<number> {
       if (!Number.isFinite(n)) return "Please enter a valid number";
       if (opts.min !== undefined && n < opts.min) return `Minimum value is ${opts.min}`;
       if (opts.max !== undefined && n > opts.max) return `Maximum value is ${opts.max}`;
+      if (opts.step !== undefined && opts.step > 0) {
+        // Anchor the step grid to `min` if provided so e.g. min:1 step:2 accepts 1,3,5…
+        const base = opts.min ?? 0;
+        const offset = n - base;
+        // Tolerate floating-point round-off (0.1 + 0.2 etc).
+        const remainder = offset - Math.round(offset / opts.step) * opts.step;
+        if (Math.abs(remainder) > 1e-9) {
+          return `Value must be a multiple of ${opts.step}${
+            opts.min !== undefined ? ` from ${opts.min}` : ""
+          }`;
+        }
+      }
       return true;
     },
   });
