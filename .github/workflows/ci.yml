@@ -65,13 +65,13 @@ jobs:
         run: pnpm docs:build
 
       - name: publint
-        run: pnpm --filter clif publint
+        run: pnpm --filter @arshad-shah/clif publint
 
       - name: Exports smoke test (ESM + CJS + types)
-        run: pnpm --filter clif exports:smoke
+        run: pnpm --filter @arshad-shah/clif exports:smoke
 
       - name: Bundle size budget
-        run: pnpm --filter clif size
+        run: pnpm --filter @arshad-shah/clif size
 
   audit:
     name: dependency audit

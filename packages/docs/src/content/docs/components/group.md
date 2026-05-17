@@ -8,7 +8,13 @@ description: Compose multiple prompts into a sequential flow.
 Run multiple prompts in sequence and collect all results into a single object:
 
 ```typescript
-import { group, text, select, confirm, multiselect } from "clif/prompts";
+import {
+  group,
+  text,
+  select,
+  confirm,
+  multiselect,
+} from "@arshad-shah/clif/prompts";
 
 const answers = await group({
   name: () => text({ message: "Project name?" }),

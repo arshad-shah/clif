@@ -6,7 +6,7 @@ description: Arrow-key navigable single and multi-choice selection prompts.
 ## Select
 
 ```typescript
-import { select } from "clif/prompts";
+import { select } from "@arshad-shah/clif/prompts";
 
 const color = await select({
   message: "Pick a color",
@@ -24,7 +24,7 @@ Navigate with ↑/↓ arrow keys, confirm with Enter. Disabled options are visib
 ## Multiselect
 
 ```typescript
-import { multiselect } from "clif/prompts";
+import { multiselect } from "@arshad-shah/clif/prompts";
 
 const features = await multiselect({
   message: "Select features to enable",

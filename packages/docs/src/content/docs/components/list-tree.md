@@ -6,7 +6,7 @@ description: Render ordered/unordered lists and recursive tree structures.
 ## List
 
 ```typescript
-import { list } from "clif";
+import { list } from "@arshad-shah/clif";
 
 // Unordered (default)
 console.log(list(["Apple", "Banana", "Cherry"]));
@@ -27,7 +27,7 @@ list(["Item"], { marker: "→", indent: 4 });
 ## Tree
 
 ```typescript
-import { tree } from "clif";
+import { tree } from "@arshad-shah/clif";
 
 console.log(
   tree({

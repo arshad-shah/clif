@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["clif-docs", "@clif/example"]
+  "ignore": ["@arshad-shah/clif-docs", "@arshad-shah/clif-example"]
 }

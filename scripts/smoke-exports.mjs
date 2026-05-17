@@ -57,7 +57,7 @@ writeFileSync(
       version: "0.0.0",
       private: true,
       // Type defaults to commonjs — the .mjs / .cjs probes below disambiguate.
-      dependencies: { clif: `file:${tgz}` },
+      dependencies: { "@arshad-shah/clif": `file:${tgz}` },
     },
     null,
     2,
@@ -71,8 +71,8 @@ run("npm install --silent --no-audit --no-fund --no-package-lock", { cwd: sandbo
 writeFileSync(
   join(sandbox, "probe.mjs"),
   `
-import { createCLI, parseArgs, bold, cyan, box, table, list, divider, log } from "clif";
-import { text, confirm, select } from "clif/prompts";
+import { createCLI, parseArgs, bold, cyan, box, table, list, divider, log } from "@arshad-shah/clif";
+import { text, confirm, select } from "@arshad-shah/clif/prompts";
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -117,8 +117,8 @@ run("node probe.mjs", { cwd: sandbox, stdio: "inherit" });
 writeFileSync(
   join(sandbox, "probe.cjs"),
   `
-const { createCLI, parseArgs, bold, box, table, list, divider, log } = require("clif");
-const { text, confirm, select } = require("clif/prompts");
+const { createCLI, parseArgs, bold, box, table, list, divider, log } = require("@arshad-shah/clif");
+const { text, confirm, select } = require("@arshad-shah/clif/prompts");
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -175,8 +175,8 @@ writeFileSync(
 writeFileSync(
   join(sandbox, "types.ts"),
   `
-import { createCLI, parseArgs, type CommandDef, type ArgDef } from "clif";
-import { text, type SelectOption } from "clif/prompts";
+import { createCLI, parseArgs, type CommandDef, type ArgDef } from "@arshad-shah/clif";
+import { text, type SelectOption } from "@arshad-shah/clif/prompts";
 
 const _argDef: ArgDef = { type: "string", required: true };
 const _opt: SelectOption<"a"> = { label: "A", value: "a" };

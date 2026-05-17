@@ -3,8 +3,16 @@
  * `kit prompt all` runs them in a group() to demonstrate composition.
  */
 
-import { bold, cyan, dim, green, keyValue } from "clif";
-import { confirm, group, multiselect, number, password, select, text } from "clif/prompts";
+import { bold, cyan, dim, green, keyValue } from "@arshad-shah/clif";
+import {
+  confirm,
+  group,
+  multiselect,
+  number,
+  password,
+  select,
+  text,
+} from "@arshad-shah/clif/prompts";
 
 function show(label: string, value: unknown): void {
   process.stdout.write(`\n${green("→")} ${bold(label)}: ${cyan(JSON.stringify(value))}\n`);

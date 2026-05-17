@@ -6,7 +6,7 @@ description: Build nested command trees with setup hooks and auto-help.
 ## Creating a CLI
 
 ```typescript
-import { createCLI } from "clif";
+import { createCLI } from "@arshad-shah/clif";
 
 const cli = createCLI({
   name: "deploy",

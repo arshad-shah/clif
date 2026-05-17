@@ -36,7 +36,7 @@ import {
   tree,
   underline,
   yellow,
-} from "clif";
+} from "@arshad-shah/clif";
 
 function section(title: string): void {
   process.stdout.write(`\n${divider({ label: title, color: cyan })}\n\n`);
