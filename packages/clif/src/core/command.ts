@@ -9,15 +9,20 @@
 import { type ArgDef, ArgError, type ParsedArgs, parseArgs } from "./args.js";
 import { bold, dim, red } from "./colors.js";
 
-export interface CommandDef {
+export interface CommandDef<A extends Record<string, ArgDef> = Record<string, ArgDef>> {
   name: string;
   description?: string;
   version?: string;
-  args?: Record<string, ArgDef>;
-  commands?: CommandDef[];
+  args?: A;
+  /**
+   * Subcommands. Typed as `CommandDef<any>` so each entry can carry its own
+   * arg schema without forcing a common shape on the parent.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: each subcommand's args generic is independent of its parent's.
+  commands?: CommandDef<any>[];
   /** Called before the handler — useful for auth checks, config loading */
-  setup?: (ctx: CommandContext) => void | Promise<void>;
-  handler?: (ctx: CommandContext) => void | Promise<void>;
+  setup?: (ctx: CommandContext<A>) => void | Promise<void>;
+  handler?: (ctx: CommandContext<A>) => void | Promise<void>;
   /**
    * When true, an unknown subcommand at this level becomes an error
    * (with did-you-mean suggestions). Defaults to true when `commands`
@@ -26,13 +31,19 @@ export interface CommandDef {
   strictSubcommands?: boolean;
 }
 
-export interface CommandContext {
+export interface CommandContext<A extends Record<string, ArgDef> = Record<string, ArgDef>> {
   /** The resolved command definition */
-  command: CommandDef;
+  command: CommandDef<A>;
   /** Ancestor commands from root → parent (excludes the resolved command itself). */
-  parents: CommandDef[];
-  /** Parsed arguments */
-  args: ParsedArgs;
+  // biome-ignore lint/suspicious/noExplicitAny: ancestors can have any args shape.
+  parents: CommandDef<any>[];
+  /**
+   * Parsed arguments. Typed against the resolved command's `args` schema so
+   * `ctx.args.flags.<name>` carries the per-flag value type when the schema
+   * uses literal types (e.g. via the `const` modifier inferred from
+   * `defineCommand` / `createCLI`).
+   */
+  args: ParsedArgs<A>;
   /** Raw argv */
   rawArgs: string[];
   /** Metadata bag for middleware-like composition */
@@ -45,37 +56,48 @@ export interface RunOptions {
 }
 
 /**
- * Identity helper for type inference on a command definition.
- * Equivalent to passing the literal directly, but produces better
- * IDE autocomplete and a single import-site for go-to-definition.
+ * Identity helper for type inference on a command definition. The
+ * `const` modifier preserves literal types from the call-site args
+ * object, so handlers receive a fully-typed `ctx.args.flags.<name>`
+ * without the caller having to write `as const`.
  */
-export function defineCommand<T extends CommandDef>(cmd: T): T {
+export function defineCommand<const A extends Record<string, ArgDef>>(
+  cmd: CommandDef<A>,
+): CommandDef<A> {
   return cmd;
 }
 
 /**
  * Create a CLI application from a command definition.
  */
-export function createCLI(root: CommandDef) {
+export function createCLI<const A extends Record<string, ArgDef>>(root: CommandDef<A>) {
   return {
-    run: (opts?: RunOptions) => runCommand(root, opts),
+    run: (opts?: RunOptions) => runCommand(root as InternalCommand, opts),
     command: root,
   };
 }
+
+// Internal alias used by every runtime helper below. The router doesn't care
+// about the per-command args generic — it just walks the tree, parses, and
+// dispatches — so we erase the parameter and avoid contravariance noise.
+// biome-ignore lint/suspicious/noExplicitAny: see above.
+type InternalCommand = CommandDef<any>;
+// biome-ignore lint/suspicious/noExplicitAny: ditto for the context the router builds.
+type InternalContext = CommandContext<any>;
 
 /** Reserved flag-name aliases that map to help / version when not shadowed. */
 const RESERVED_HELP_ALIAS = "h";
 const RESERVED_VERSION_ALIAS = "v";
 
-function userDefinesAlias(cmd: CommandDef, alias: string): boolean {
+function userDefinesAlias(cmd: InternalCommand, alias: string): boolean {
   if (!cmd.args) return false;
-  for (const def of Object.values(cmd.args)) {
+  for (const def of Object.values(cmd.args as Record<string, ArgDef>)) {
     if (def.alias === alias) return true;
   }
   return false;
 }
 
-function userDefinesFlag(cmd: CommandDef, name: string): boolean {
+function userDefinesFlag(cmd: InternalCommand, name: string): boolean {
   return !!cmd.args && Object.prototype.hasOwnProperty.call(cmd.args, name);
 }
 
@@ -86,7 +108,7 @@ function userDefinesFlag(cmd: CommandDef, name: string): boolean {
  * conventional `-h` / `-v` aliases are only bound when the user hasn't
  * claimed those short flags for something else.
  */
-function buildMergedArgs(command: CommandDef, root: CommandDef): Record<string, ArgDef> {
+function buildMergedArgs(command: InternalCommand, root: InternalCommand): Record<string, ArgDef> {
   const merged: Record<string, ArgDef> = { ...(command.args ?? {}) };
   if (!userDefinesFlag(command, "help")) {
     merged.help = {
@@ -107,7 +129,7 @@ function buildMergedArgs(command: CommandDef, root: CommandDef): Record<string, 
   return merged;
 }
 
-async function runCommand(root: CommandDef, opts?: RunOptions): Promise<void> {
+async function runCommand(root: InternalCommand, opts?: RunOptions): Promise<void> {
   const argv = opts?.argv ?? process.argv.slice(2);
 
   try {
@@ -150,7 +172,7 @@ async function runCommand(root: CommandDef, opts?: RunOptions): Promise<void> {
       throw new Error(`Unknown flag: --${u}\n  Run with --help to see available options.`);
     }
 
-    const ctx: CommandContext = {
+    const ctx: InternalContext = {
       command,
       parents,
       args,
@@ -185,11 +207,11 @@ function formatError(error: Error): void {
 }
 
 function resolveCommand(
-  root: CommandDef,
+  root: InternalCommand,
   argv: string[],
-): { command: CommandDef; parents: CommandDef[]; remaining: string[] } {
+): { command: InternalCommand; parents: InternalCommand[]; remaining: string[] } {
   let current = root;
-  const parents: CommandDef[] = [];
+  const parents: InternalCommand[] = [];
   const remaining = [...argv];
 
   while (remaining.length > 0) {
@@ -207,7 +229,11 @@ function resolveCommand(
   return { command: current, parents, remaining };
 }
 
-function printHelp(command: CommandDef, root: CommandDef, parents: CommandDef[]): void {
+function printHelp(
+  command: InternalCommand,
+  root: InternalCommand,
+  parents: InternalCommand[],
+): void {
   const lines: string[] = [];
 
   if (command.description) {
