@@ -65,6 +65,21 @@ describe("wordWrap", () => {
     const lines = result.split("\n").filter(Boolean);
     expect(lines).toEqual(["a", "b", "c"]);
   });
+
+  it("preserves existing newlines instead of treating them as part of a word", () => {
+    // A pre-broken line that already fits must not be merged into a single
+    // over-long token (which would also wrongly count the "\n" as visible).
+    expect(wordWrap("hello\nworld foo bar", 80)).toBe("hello\nworld foo bar");
+  });
+
+  it("wraps each input line independently", () => {
+    const result = wordWrap("aaa bbb ccc\nddd eee fff", 7);
+    expect(result).toBe("aaa bbb\nccc\nddd eee\nfff");
+  });
+
+  it("preserves blank lines between paragraphs", () => {
+    expect(wordWrap("alpha\n\nbravo", 80)).toBe("alpha\n\nbravo");
+  });
 });
 
 // ── indent ──────────────────────────────────────────────────────────────────
@@ -204,6 +219,30 @@ describe("formatDuration", () => {
 
   it("formats just under 1 second", () => {
     expect(formatDuration(999)).toBe("999ms");
+  });
+
+  it("rolls seconds into minutes instead of rendering 60s", () => {
+    // 119_999ms is just under 2 minutes; rounding the seconds must carry
+    // into the minutes rather than producing the impossible "1m 60s".
+    expect(formatDuration(119_999)).toBe("2m 0s");
+  });
+
+  it("rolls a near-minute duration up into minutes (no 60.0s)", () => {
+    // 59_999ms rounds to 60s, which should read as "1m 0s", never "60.0s".
+    expect(formatDuration(59_999)).toBe("1m 0s");
+  });
+
+  it("never renders a seconds component of 60 or more", () => {
+    for (let ms = 60_000; ms <= 5_400_000; ms += 137) {
+      const secs = Number.parseInt(formatDuration(ms).match(/(\d+)s$/)![1]!, 10);
+      expect(secs).toBeLessThan(60);
+    }
+  });
+
+  it("formats hours, minutes, and seconds for long durations", () => {
+    expect(formatDuration(3_600_000)).toBe("1h 0m 0s");
+    expect(formatDuration(3_661_000)).toBe("1h 1m 1s");
+    expect(formatDuration(7_322_000)).toBe("2h 2m 2s");
   });
 
   describe("non-finite inputs", () => {
