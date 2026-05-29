@@ -44,10 +44,25 @@ export function truncate(text: string, max: number, suffix = "…"): string {
   return out + suffix;
 }
 
-/** Wrap text to a given VISIBLE width, ignoring ANSI escape codes. */
+/**
+ * Wrap text to a given VISIBLE width, ignoring ANSI escape codes.
+ *
+ * Existing newlines are honored: each input line is wrapped independently and
+ * blank lines (paragraph breaks) are preserved. This prevents a `"\n"` from
+ * being swallowed into a word and counted as a visible column.
+ */
 export function wordWrap(text: string, width: number): string {
   if (text.length === 0) return "";
-  const words = text.split(" ");
+  return text
+    .split("\n")
+    .map((line) => wrapLine(line, width))
+    .join("\n");
+}
+
+/** Wrap a single newline-free line to `width` visible columns. */
+function wrapLine(line: string, width: number): string {
+  if (line === "") return "";
+  const words = line.split(" ");
   const lines: string[] = [];
   let current = "";
   let currentVisible = 0;
@@ -115,8 +130,18 @@ export function formatBytes(bytes: number): string {
 export function formatDuration(ms: number): string {
   if (!Number.isFinite(ms)) return String(ms);
   if (ms < 1000) return `${ms}ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
-  const mins = Math.floor(ms / 60_000);
-  const secs = Math.round((ms % 60_000) / 1000);
-  return `${mins}m ${secs}s`;
+  // Sub-minute durations show one decimal of seconds — but guard the rounding
+  // boundary so e.g. 59_999ms rolls up to "1m 0s" rather than the misleading
+  // "60.0s".
+  if (ms < 60_000 && (ms / 1000).toFixed(1) !== "60.0") {
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+  // Round to whole seconds first, then carry into minutes/hours. Computing the
+  // components independently (the old approach) let a rounded-up seconds value
+  // surface as the impossible "Xm 60s".
+  const totalSecs = Math.round(ms / 1000);
+  const hours = Math.floor(totalSecs / 3600);
+  const mins = Math.floor((totalSecs % 3600) / 60);
+  const secs = totalSecs % 60;
+  return hours > 0 ? `${hours}h ${mins}m ${secs}s` : `${mins}m ${secs}s`;
 }
