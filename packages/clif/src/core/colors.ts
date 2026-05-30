@@ -209,7 +209,10 @@ const ANSI_RE = makeAnsiRegex();
 
 /** Remove all ANSI escape sequences from a string */
 export function stripAnsi(text: string): string {
-  return text.replace(ANSI_RE, "");
+  // Fast path: the vast majority of strings carry no escape sequences, so skip
+  // the regex machinery and the throwaway allocation it produces. visibleLength
+  // (and every renderer that calls it per cell/line) rides on this same check.
+  return text.includes("\x1b") ? text.replace(ANSI_RE, "") : text;
 }
 
 /** Get the visible length of a string (excluding ANSI codes) */
