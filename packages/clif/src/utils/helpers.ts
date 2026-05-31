@@ -47,22 +47,19 @@ export function truncate(text: string, max: number, suffix = "…"): string {
 /**
  * Wrap text to a given VISIBLE width, ignoring ANSI escape codes.
  *
- * Existing newlines are honored: each input line is wrapped independently and
- * blank lines (paragraph breaks) are preserved. This prevents a `"\n"` from
- * being swallowed into a word and counted as a visible column.
+ * Existing newlines are honored: each line is wrapped independently and blank
+ * lines (paragraph breaks) are preserved, so a `"\n"` is never swallowed into a
+ * word and counted as a visible column.
  */
 export function wordWrap(text: string, width: number): string {
   if (text.length === 0) return "";
-  return text
-    .split("\n")
-    .map((line) => wrapLine(line, width))
-    .join("\n");
-}
-
-/** Wrap a single newline-free line to `width` visible columns. */
-function wrapLine(line: string, width: number): string {
-  if (line === "") return "";
-  const words = line.split(" ");
+  if (text.includes("\n")) {
+    return text
+      .split("\n")
+      .map((line) => wordWrap(line, width))
+      .join("\n");
+  }
+  const words = text.split(" ");
   const lines: string[] = [];
   let current = "";
   let currentVisible = 0;
