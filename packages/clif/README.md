@@ -11,7 +11,7 @@
 > Tiny, zero-dependency CLI framework with beautiful output and a composable API.
 
 `clif` (published as `@arshad-shah/clif`) replaces `commander`, `chalk`,
-`inquirer`, `ora`, and `cli-table3` in a single package — under 15 KB gzipped,
+`inquirer`, `ora`, and `cli-table3` in a single package — under 16 KB gzipped,
 zero runtime dependencies, fully tree-shakeable.
 
 ```bash

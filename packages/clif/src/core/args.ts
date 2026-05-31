@@ -3,7 +3,7 @@
  *
  * Supports:
  *  - Long flags: --name value, --name=value, --flag (boolean)
- *  - Short flags: -n value, -abc (stacked booleans)
+ *  - Short flags: -n value, -n5 / -n=5 (attached value), -abc (stacked booleans)
  *  - Negation: --no-flag toggles boolean to false
  *  - Repeat flags: { multiple: true } accumulates values
  *  - Positional arguments
@@ -288,14 +288,18 @@ export function parseArgs(defs: Record<string, ArgDef>, opts: ParseOptions = {})
           i++;
         }
       } else {
-        // Stacked short flags: each must resolve to a boolean def.
-        for (const ch of chars) {
+        // Stacked short flags. Boolean flags accumulate; the first non-boolean
+        // flag consumes the remainder of the token as its value (getopt-style:
+        // `-n5` ≡ `-n 5`, `-xvffile` ≡ `-x -v -f file`). An `=` immediately
+        // after the flag is treated as an explicit separator (`-n=5`, `-n=`).
+        for (let c = 0; c < chars.length; c++) {
+          const ch = chars[c]!;
           const rawName = resolveName(ch);
-          const def = hasDef(rawName) ? defs[rawName] : undefined;
           if (isPrototypePollutionKey(rawName)) {
             unknown.push(rawName);
             continue;
           }
+          const def = hasDef(rawName) ? defs[rawName] : undefined;
           if (!def) {
             if (opts.allowUnknown) {
               flags[rawName] = true;
@@ -305,13 +309,28 @@ export function parseArgs(defs: Record<string, ArgDef>, opts: ParseOptions = {})
             }
             continue;
           }
-          if (def.type !== "boolean") {
-            throw new ArgError(
-              `Cannot stack non-boolean flag -${ch} (--${rawName} expects a value)`,
-              rawName,
-            );
+          if (def.type === "boolean") {
+            assignValue(rawName, true);
+            continue;
           }
-          assignValue(rawName, true);
+          // Non-boolean flag: take the rest of the token as its value. A
+          // leading `=` marks an explicit value (which may be empty); anything
+          // else is the value verbatim; if nothing remains, fall through to the
+          // next argv token (`-vn 5`).
+          const remainder = chars.slice(c + 1);
+          if (remainder.startsWith("=")) {
+            assignValue(rawName, coerce(rawName, remainder.slice(1)));
+          } else if (remainder.length > 0) {
+            assignValue(rawName, coerce(rawName, remainder));
+          } else {
+            const next = argv[i + 1];
+            if (next === undefined || looksLikeFlag(next)) {
+              throw new ArgError(`Missing value for -${ch}`, rawName);
+            }
+            assignValue(rawName, coerce(rawName, next));
+            i++;
+          }
+          break;
         }
       }
       i++;

@@ -319,6 +319,14 @@ export function createSpinner(opts: SpinnerOptions = {}) {
         timer = setInterval(render, interval);
         sigintHandler = () => {
           cleanup();
+          // A registered SIGINT listener suppresses Node's default termination,
+          // so a spinner would otherwise swallow the first Ctrl+C. Once our
+          // listener is removed by cleanup, re-raise the interrupt — but only
+          // when no other handlers remain, to avoid double-firing a SIGINT
+          // handler the host program installed itself.
+          if (process.listenerCount("SIGINT") === 0) {
+            process.kill(process.pid, "SIGINT");
+          }
         };
         process.once("SIGINT", sigintHandler);
       } else {

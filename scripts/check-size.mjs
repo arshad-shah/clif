@@ -6,7 +6,7 @@
  * each format independently. Shared chunks (the `colors-*.mjs` / `.cjs`
  * tsdown emits) are reported separately and counted once per format.
  *
- * The README claims "< 15 KB gzipped" — that's the per-format ceiling.
+ * The README claims "< 16 KB gzipped" — that's the per-format ceiling.
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -19,7 +19,7 @@ const distDir = join(here, "..", "packages", "clif", "dist");
 
 // Per-format ceiling: total bytes a consumer pulls in when they `import "clif"`
 // AND `import "clif/prompts"` together, including any shared chunks.
-const PER_FORMAT_BUDGET = 15 * 1024;
+const PER_FORMAT_BUDGET = 16 * 1024;
 
 function fmt(bytes) {
   return `${(bytes / 1024).toFixed(2)} KB`;
