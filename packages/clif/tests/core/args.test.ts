@@ -206,13 +206,23 @@ describe("parseArgs", () => {
   });
 
   describe("stacked short flags validation", () => {
-    it("throws when a stacked char is a non-boolean type", () => {
+    it("consumes the rest of the token as the value for a trailing non-boolean (getopt-style)", () => {
+      const result = parseArgs(
+        { a: { type: "boolean" }, b: { type: "boolean" }, c: { type: "string" } },
+        { args: ["-abc", "value"] },
+      );
+      expect(result.flags.a).toBe(true);
+      expect(result.flags.b).toBe(true);
+      expect(result.flags.c).toBe("value");
+    });
+
+    it("throws missing-value when a stacked non-boolean has no following value", () => {
       expect(() =>
         parseArgs(
           { a: { type: "boolean" }, b: { type: "boolean" }, c: { type: "string" } },
           { args: ["-abc"] },
         ),
-      ).toThrow(/-c.*boolean|stack/i);
+      ).toThrow(/-c|missing value/i);
     });
 
     it("collects unknown stacked chars into unknown[]", () => {
@@ -225,6 +235,46 @@ describe("parseArgs", () => {
       const result = parseArgs({ a: { type: "boolean" } }, { args: ["-ax"], allowUnknown: true });
       expect(result.flags.a).toBe(true);
       expect(result.flags.x).toBe(true);
+    });
+  });
+
+  describe("attached short-flag values (getopt-style)", () => {
+    it("parses -n5 as -n 5 for a number flag", () => {
+      const result = parseArgs({ num: { type: "number", alias: "n" } }, { args: ["-n5"] });
+      expect(result.flags.num).toBe(5);
+    });
+
+    it("parses -nValue as -n Value for a string flag", () => {
+      const result = parseArgs({ name: { type: "string", alias: "n" } }, { args: ["-nValue"] });
+      expect(result.flags.name).toBe("Value");
+    });
+
+    it("tolerates an = between the short flag and its attached value", () => {
+      const result = parseArgs({ num: { type: "number", alias: "n" } }, { args: ["-n=5"] });
+      expect(result.flags.num).toBe(5);
+    });
+
+    it("treats -n= as an explicit empty value for a string flag", () => {
+      const result = parseArgs({ name: { type: "string", alias: "n" } }, { args: ["-n="] });
+      expect(result.flags.name).toBe("");
+    });
+
+    it("accepts booleans stacked before a value-taking flag (-vn5)", () => {
+      const result = parseArgs(
+        { verbose: { type: "boolean", alias: "v" }, num: { type: "number", alias: "n" } },
+        { args: ["-vn5"] },
+      );
+      expect(result.flags.verbose).toBe(true);
+      expect(result.flags.num).toBe(5);
+    });
+
+    it("validates choices against the attached value", () => {
+      expect(() =>
+        parseArgs(
+          { level: { type: "string", alias: "l", choices: ["low", "high"] } },
+          { args: ["-lmedium"] },
+        ),
+      ).toThrow(/choices/i);
     });
   });
 
