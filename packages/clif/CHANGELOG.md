@@ -1,5 +1,45 @@
 # clif
 
+## 1.2.0
+
+### Minor Changes
+
+- 2733eec: `parseArgs` now supports getopt-style attached values for short flags: the
+  value may follow the flag within the same token (`-n5`, `-palice`), optionally
+  separated by `=` (`-n=5`). Booleans may still be stacked ahead of a
+  value-taking flag (`-vn5` ≡ `-v -n 5`). Previously a non-boolean flag inside a
+  stacked token threw; it now consumes the remainder of the token (or the next
+  argument) as its value.
+
+### Patch Changes
+
+- 53545a2: perf: fast-path ANSI-free strings in `stripAnsi`
+
+  `stripAnsi` now skips the regex scan and the throwaway allocation it produces
+  when a string contains no escape sequences — the overwhelmingly common case.
+  `visibleLength` rides on the same check (it delegates to `stripAnsi`), and that
+  function sits in the inner loop of `box`, `table`, `divider`, and the prompt
+  renderers, so the win compounds:
+  - `visibleLength` / `stripAnsi` on plain strings: ~3.4× faster
+  - `table` rendering: ~29% faster
+  - `box` rendering: ~19% faster
+
+  No API or output changes; bundle size stays within budget.
+
+- 2733eec: Fix two correctness/robustness bugs in the helper utilities:
+  - `formatDuration` no longer emits an impossible seconds component of `60`
+    (e.g. `119_999ms` now formats as `2m 0s` instead of `1m 60s`, and
+    `59_999ms` as `1m 0s` instead of `60.0s`). Durations of an hour or more now
+    include an hours component (`3_600_000ms` → `1h 0m 0s`).
+  - `wordWrap` now honors existing newlines: each line is wrapped independently
+    and blank lines (paragraph breaks) are preserved, instead of collapsing a
+    multi-line string into a single un-wrappable token.
+
+- 2733eec: `createSpinner` no longer swallows the first `Ctrl+C`. While a spinner is
+  active it installs a `SIGINT` handler to restore the cursor; that handler now
+  re-raises `SIGINT` after cleanup so the process terminates as the user expects,
+  instead of absorbing the interrupt and leaving the program running.
+
 ## 1.1.2
 
 ### Patch Changes
