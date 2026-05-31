@@ -39,8 +39,16 @@ When you pass the defs as `as const`, the return type of `result.flags.*` is ful
 -n alice
 -p 8080
 
-# Stacked booleans (each char must resolve to a boolean def)
+# Attached values (getopt-style) — value follows the flag in the same token
+-nalice   # same as -n alice
+-p8080    # same as -p 8080
+-n=alice  # an "=" separator is also accepted
+
+# Stacked booleans
 -vdf  # same as -v -d -f
+
+# Stacked booleans followed by a value-taking flag
+-vdp8080  # same as -v -d -p 8080
 
 # Negation — sets a known boolean flag to false
 --no-verbose

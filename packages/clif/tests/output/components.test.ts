@@ -602,6 +602,65 @@ describe("createSpinner non-TTY", () => {
     expect(s.isActive).toBe(false);
   });
 
+  it("restores the cursor and re-raises SIGINT instead of swallowing Ctrl+C", () => {
+    const { chunks, stream } = makeStream(true);
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    // Isolate from any ambient SIGINT listeners (e.g. the test runner's) so the
+    // "no handlers remain" re-raise is exercised deterministically.
+    const saved = process.listeners("SIGINT");
+    process.removeAllListeners("SIGINT");
+    try {
+      const s = createSpinner({ stream });
+      s.start("x");
+
+      // The spinner should have registered exactly one SIGINT listener.
+      const added = process.listeners("SIGINT");
+      expect(added).toHaveLength(1);
+      const handler = added[0] as () => void;
+
+      // Simulate the user pressing Ctrl+C.
+      handler();
+
+      const out = chunks.join("");
+      // Cursor must be restored on interrupt.
+      expect(out).toContain("\x1b[?25h");
+      // Our listener must be removed so the interrupt isn't permanently trapped.
+      expect(process.listeners("SIGINT")).toHaveLength(0);
+      // And the interrupt must be re-raised so the process actually terminates.
+      expect(killSpy).toHaveBeenCalledWith(process.pid, "SIGINT");
+
+      s.stop();
+    } finally {
+      killSpy.mockRestore();
+      process.removeAllListeners("SIGINT");
+      for (const l of saved) process.on("SIGINT", l as () => void);
+    }
+  });
+
+  it("defers to a host SIGINT handler instead of re-raising (no double-fire)", () => {
+    const { stream } = makeStream(true);
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const saved = process.listeners("SIGINT");
+    process.removeAllListeners("SIGINT");
+    const hostHandler = vi.fn();
+    process.on("SIGINT", hostHandler);
+    try {
+      const s = createSpinner({ stream });
+      s.start("x");
+      // The spinner's handler is the most-recently added listener.
+      const listeners = process.listeners("SIGINT");
+      const handler = listeners[listeners.length - 1] as () => void;
+      handler();
+      // A host handler is still registered, so the spinner must NOT re-raise.
+      expect(killSpy).not.toHaveBeenCalled();
+      s.stop();
+    } finally {
+      killSpy.mockRestore();
+      process.removeAllListeners("SIGINT");
+      for (const l of saved) process.on("SIGINT", l as () => void);
+    }
+  });
+
   it("hides and shows the cursor on TTY", () => {
     const { chunks, stream } = makeStream(true);
     const s = createSpinner({ stream });
