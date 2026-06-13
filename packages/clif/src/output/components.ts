@@ -7,27 +7,29 @@
  * instead of spamming cursor-control sequences.
  */
 
-import {
-  type Formatter,
-  bold,
-  cyan,
-  dim,
-  green,
-  red,
-  visibleLength,
-  yellow,
-} from "../core/colors.js";
+import { CLEAR_LINE, CURSOR_HIDE, CURSOR_SHOW } from "../core/ansi.js";
+import { type Formatter, bold, cyan, dim, green, visibleLength } from "../core/colors.js";
+import { boxChars, statusIcon, symbols } from "../core/symbols.js";
 import { truncate } from "../utils/helpers.js";
 
 // ── Box ─────────────────────────────────────────────────────────────────────
 
 export type BoxBorder = "single" | "double" | "round" | "bold" | "none";
 
+const { topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical } = boxChars;
+
 const BORDERS: Record<
   BoxBorder,
   { tl: string; tr: string; bl: string; br: string; h: string; v: string }
 > = {
-  single: { tl: "┌", tr: "┐", bl: "└", br: "┘", h: "─", v: "│" },
+  single: {
+    tl: topLeft,
+    tr: topRight,
+    bl: bottomLeft,
+    br: bottomRight,
+    h: horizontal,
+    v: vertical,
+  },
   double: { tl: "╔", tr: "╗", bl: "╚", br: "╝", h: "═", v: "║" },
   round: { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│" },
   bold: { tl: "┏", tr: "┓", bl: "┗", br: "┛", h: "━", v: "┃" },
@@ -145,10 +147,16 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
   }
 
   const lines: string[] = [];
-  const segs = widths.map((w) => "─".repeat(w + 2));
-  const topSep = border ? `┌${segs.join("┬")}┐` : "";
-  const midSep = border ? `├${segs.join("┼")}┤` : "";
-  const bottomSep = border ? `└${segs.join("┴")}┘` : "";
+  const segs = widths.map((w) => boxChars.horizontal.repeat(w + 2));
+  const topSep = border
+    ? `${boxChars.topLeft}${segs.join(boxChars.teeDown)}${boxChars.topRight}`
+    : "";
+  const midSep = border
+    ? `${boxChars.teeRight}${segs.join(boxChars.cross)}${boxChars.teeLeft}`
+    : "";
+  const bottomSep = border
+    ? `${boxChars.bottomLeft}${segs.join(boxChars.teeUp)}${boxChars.bottomRight}`
+    : "";
 
   if (border) lines.push(topSep);
 
@@ -164,7 +172,8 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
     });
 
     if (border) {
-      lines.push(`│ ${cells.join(" │ ")} │`);
+      const v = boxChars.vertical;
+      lines.push(`${v} ${cells.join(` ${v} `)} ${v}`);
     } else {
       lines.push(`  ${cells.join("  ")}  `);
     }
@@ -210,7 +219,7 @@ export interface ListOptions {
 }
 
 export function list(items: string[], opts: ListOptions = {}): string {
-  const { marker = "●", indent = 0, markerColor = cyan, ordered = false } = opts;
+  const { marker = symbols.bullet, indent = 0, markerColor = cyan, ordered = false } = opts;
   const pad = " ".repeat(indent);
 
   return items
@@ -271,9 +280,6 @@ export interface SpinnerOptions {
 
 const DEFAULT_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-const CURSOR_HIDE = "\x1b[?25l";
-const CURSOR_SHOW = "\x1b[?25h";
-
 function isStreamTTY(stream: NodeJS.WritableStream): boolean {
   // `tty.WriteStream` exposes `isTTY`, but the base `WritableStream` type
   // does not — probe defensively without an unchecked structural cast.
@@ -292,14 +298,14 @@ export function createSpinner(opts: SpinnerOptions = {}) {
 
   function render() {
     const frame = color(frames[frameIdx % frames.length]!);
-    stream.write(`\r\x1b[K${frame} ${text}`);
+    stream.write(`${CLEAR_LINE}${frame} ${text}`);
     frameIdx++;
   }
 
   function cleanup() {
     if (timer) clearInterval(timer);
     timer = null;
-    if (tty) stream.write(`\r\x1b[K${CURSOR_SHOW}`);
+    if (tty) stream.write(`${CLEAR_LINE}${CURSOR_SHOW}`);
     if (sigintHandler) {
       process.off("SIGINT", sigintHandler);
       sigintHandler = null;
@@ -341,16 +347,16 @@ export function createSpinner(opts: SpinnerOptions = {}) {
       return api;
     },
     succeed(msg?: string) {
-      return api.stop(`${green("✔")} ${msg ?? text}`);
+      return api.stop(`${statusIcon("success")} ${msg ?? text}`);
     },
     fail(msg?: string) {
-      return api.stop(`${red("✖")} ${msg ?? text}`);
+      return api.stop(`${statusIcon("error")} ${msg ?? text}`);
     },
     warn(msg?: string) {
-      return api.stop(`${yellow("⚠")} ${msg ?? text}`);
+      return api.stop(`${statusIcon("warning")} ${msg ?? text}`);
     },
     info(msg?: string) {
-      return api.stop(`${cyan("ℹ")} ${msg ?? text}`);
+      return api.stop(`${statusIcon("info")} ${msg ?? text}`);
     },
     update(msg: string) {
       text = msg;
@@ -409,7 +415,7 @@ export function createProgress(opts: ProgressOptions) {
 
   function render() {
     if (tty) {
-      stream.write(`\r\x1b[K${format_()}`);
+      stream.write(`${CLEAR_LINE}${format_()}`);
       if (current >= total) stream.write("\n");
     } else {
       // Non-TTY: only emit on completion (every tick would flood logs).
@@ -467,12 +473,12 @@ export function banner(text: string, opts: { color?: Formatter; char?: string } 
 // ── Log helpers ─────────────────────────────────────────────────────────────
 
 export const log = {
-  info: (msg: string) => process.stdout.write(`${cyan("ℹ")} ${msg}\n`),
-  success: (msg: string) => process.stdout.write(`${green("✔")} ${msg}\n`),
-  warn: (msg: string) => process.stderr.write(`${yellow("⚠")} ${msg}\n`),
-  error: (msg: string) => process.stderr.write(`${red("✖")} ${msg}\n`),
+  info: (msg: string) => process.stdout.write(`${statusIcon("info")} ${msg}\n`),
+  success: (msg: string) => process.stdout.write(`${statusIcon("success")} ${msg}\n`),
+  warn: (msg: string) => process.stderr.write(`${statusIcon("warning")} ${msg}\n`),
+  error: (msg: string) => process.stderr.write(`${statusIcon("error")} ${msg}\n`),
   debug: (msg: string) => {
-    if (process.env.DEBUG) process.stderr.write(`${dim("●")} ${dim(msg)}\n`);
+    if (process.env.DEBUG) process.stderr.write(`${dim(symbols.bullet)} ${dim(msg)}\n`);
   },
   step: (n: number, total: number, msg: string) =>
     process.stdout.write(`${dim(`[${n}/${total}]`)} ${msg}\n`),

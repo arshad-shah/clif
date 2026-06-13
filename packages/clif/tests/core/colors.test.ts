@@ -21,6 +21,7 @@ import {
   cyan,
   cyanBright,
   dim,
+  gradient,
   gray,
   green,
   greenBright,
@@ -30,14 +31,18 @@ import {
   inverse,
   isColorSupported,
   italic,
+  link,
   magenta,
   magentaBright,
   red,
   redBright,
   rgb,
   rgb256,
+  rgbToAnsi16,
+  rgbToAnsi256,
   strikethrough,
   stripAnsi,
+  style,
   underline,
   visibleLength,
   white,
@@ -196,8 +201,14 @@ describe("colors", () => {
   });
 
   describe("256-color", () => {
-    it("should return plain text when color level < 2", () => {
+    it("should downgrade to a basic 16-color code when level < 2", () => {
       colorLevel(1);
+      // 196 (bright red in the cube) maps to bright-red SGR 91, not dropped.
+      expect(rgb256(196)("hello")).toBe("\x1b[91mhello\x1b[39m");
+    });
+
+    it("should return plain text when color level is 0", () => {
+      colorLevel(0);
       expect(rgb256(196)("hello")).toBe("hello");
     });
 
@@ -213,8 +224,19 @@ describe("colors", () => {
   });
 
   describe("truecolor", () => {
-    it("should return plain text when color level < 3", () => {
+    it("should downgrade to a 256-color code when level is 2", () => {
       colorLevel(2);
+      // rgb(255,0,0) → nearest 256 cube index 196.
+      expect(rgb(255, 0, 0)("hello")).toBe("\x1b[38;5;196mhello\x1b[39m");
+    });
+
+    it("should downgrade to a basic 16-color code when level is 1", () => {
+      colorLevel(1);
+      expect(rgb(255, 0, 0)("hello")).toBe("\x1b[91mhello\x1b[39m");
+    });
+
+    it("should return plain text when color level is 0", () => {
+      colorLevel(0);
       expect(rgb(255, 0, 0)("hello")).toBe("hello");
     });
 
@@ -245,10 +267,17 @@ describe("colors", () => {
       expect(bgHex("#0000ff")("hello")).toBe("\x1b[48;2;0;0;255mhello\x1b[49m");
     });
 
+    it("expands 3-digit shorthand", () => {
+      colorLevel(3);
+      // #fff → ffffff, #f00 → ff0000
+      expect(hex("#fff")("hello")).toBe("\x1b[38;2;255;255;255mhello\x1b[39m");
+      expect(hex("f0a")("hello")).toBe("\x1b[38;2;255;0;170mhello\x1b[39m");
+    });
+
     it("throws on invalid hex strings", () => {
-      expect(() => hex("xyz")).toThrow(/hex/i);
+      expect(() => hex("xyz")).toThrow(/hex/i); // 3 chars but not all hex digits
       expect(() => hex("#zzzzzz")).toThrow(/hex/i);
-      expect(() => hex("#fff")).toThrow(/hex/i); // we require 6 digits
+      expect(() => hex("#ffff")).toThrow(/hex/i); // 4 digits is neither 3 nor 6
       expect(() => bgHex("not-a-hex")).toThrow(/hex/i);
     });
 
@@ -333,6 +362,118 @@ describe("colors", () => {
 
     it("should return correct length for plain text", () => {
       expect(visibleLength("hello")).toBe(5);
+    });
+
+    it("should ignore OSC 8 hyperlink markup", () => {
+      colorLevel(3);
+      expect(visibleLength(link("docs", "https://example.com"))).toBe(4);
+      expect(stripAnsi(link("docs", "https://example.com"))).toBe("docs");
+    });
+  });
+
+  describe("rgb→ansi conversions", () => {
+    it("maps pure red to 256 cube index 196", () => {
+      expect(rgbToAnsi256(255, 0, 0)).toBe(196);
+    });
+
+    it("maps grayscale into the 232–255 ramp", () => {
+      expect(rgbToAnsi256(128, 128, 128)).toBeGreaterThanOrEqual(232);
+      expect(rgbToAnsi256(0, 0, 0)).toBe(16);
+      expect(rgbToAnsi256(255, 255, 255)).toBe(231);
+    });
+
+    it("maps rgb to a basic SGR code", () => {
+      expect(rgbToAnsi16(255, 0, 0)).toBe(91);
+      expect(rgbToAnsi16(0, 0, 0)).toBe(30);
+    });
+  });
+
+  describe("gradient", () => {
+    it("paints one truecolor per visible char at level 3", () => {
+      colorLevel(3);
+      const out = gradient(["#ff0000", "#0000ff"])("ab");
+      // 2 chars → endpoints are exactly the two stops.
+      expect(out).toBe("\x1b[38;2;255;0;0ma\x1b[39m\x1b[38;2;0;0;255mb\x1b[39m");
+    });
+
+    it("accepts rgb tuples and a single stop", () => {
+      colorLevel(3);
+      expect(gradient([[255, 136, 0]])("hi")).toBe("\x1b[38;2;255;136;0mhi\x1b[39m");
+    });
+
+    it("downgrades through the same path as rgb()", () => {
+      colorLevel(1);
+      const out = gradient(["#ff0000", "#ff0000"])("x");
+      expect(stripAnsi(out)).toBe("x");
+      expect(out).toContain("\x1b[");
+    });
+
+    it("returns plain text at level 0", () => {
+      colorLevel(0);
+      expect(gradient(["#ff0000", "#0000ff"])("hello")).toBe("hello");
+    });
+
+    it("preserves visible length", () => {
+      colorLevel(3);
+      expect(visibleLength(gradient(["#f00", "#00f"])("hello world"))).toBe(11);
+    });
+
+    it("throws when given no stops", () => {
+      expect(() => gradient([])).toThrow(/at least one/i);
+    });
+  });
+
+  describe("link", () => {
+    it("emits an OSC 8 sequence when color is supported", () => {
+      colorLevel(3);
+      expect(link("clif", "https://clif.dev")).toBe("\x1b]8;;https://clif.dev\x07clif\x1b]8;;\x07");
+    });
+
+    it("falls back to 'text (url)' at level 0", () => {
+      colorLevel(0);
+      expect(link("clif", "https://clif.dev")).toBe("clif (https://clif.dev)");
+    });
+
+    it("collapses to bare text when label equals url at level 0", () => {
+      colorLevel(0);
+      expect(link("https://clif.dev", "https://clif.dev")).toBe("https://clif.dev");
+    });
+  });
+
+  describe("style (chainable)", () => {
+    it("acts as identity with no styles", () => {
+      expect(style("hello")).toBe("hello");
+    });
+
+    it("stacks named modifiers and colors", () => {
+      expect(style.red("hello")).toBe(red("hello"));
+      expect(style.bold.red("hello")).toBe(bold(red("hello")));
+      expect(style.red.bold("hello")).toBe(red(bold("hello")));
+    });
+
+    it("supports background + foreground", () => {
+      expect(style.bgBlue.white(" hi ")).toBe(bgBlue(white(" hi ")));
+    });
+
+    it("supports extended-color methods", () => {
+      colorLevel(3);
+      expect(style.hex("#ff8800")("x")).toBe(hex("#ff8800")("x"));
+      expect(style.rgb(255, 136, 0).bold("x")).toBe(rgb(255, 136, 0)(bold("x")));
+      expect(style.ansi256(208)("x")).toBe(rgb256(208)("x"));
+    });
+
+    it("produces immutable, reusable builders", () => {
+      const heading = style.bold.cyan;
+      expect(heading("a")).toBe(bold(cyan("a")));
+      // Branching off the same builder must not mutate it.
+      const alt = heading.underline;
+      expect(alt("a")).toBe(bold(cyan(underline("a"))));
+      expect(heading("b")).toBe(bold(cyan("b")));
+    });
+
+    it("respects NO_COLOR (level 0)", () => {
+      colorLevel(0);
+      expect(style.red.bold("hello")).toBe("hello");
     });
   });
 });

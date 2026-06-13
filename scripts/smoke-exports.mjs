@@ -71,7 +71,7 @@ run("npm install --silent --no-audit --no-fund --no-package-lock", { cwd: sandbo
 writeFileSync(
   join(sandbox, "probe.mjs"),
   `
-import { createCLI, parseArgs, bold, cyan, box, table, list, divider, log } from "@arshad-shah/clif";
+import { createCLI, parseArgs, bold, cyan, box, table, list, divider, log, style, gradient, link } from "@arshad-shah/clif";
 import { text, confirm, select } from "@arshad-shah/clif/prompts";
 
 const checks = {
@@ -85,6 +85,9 @@ const checks = {
   divider:   typeof divider   === "function",
   "log.info":     typeof log?.info     === "function",
   "log.success":  typeof log?.success  === "function",
+  style:    typeof style    === "function",
+  gradient: typeof gradient === "function",
+  link:     typeof link     === "function",
   text:    typeof text    === "function",
   confirm: typeof confirm === "function",
   select:  typeof select  === "function",
@@ -98,6 +101,15 @@ if (!b.includes("hello")) {
 }
 if (!bold("x").includes("x")) {
   console.error("ESM probe: bold() did not pass through input");
+  process.exit(1);
+}
+// Smoke: chainable style + gradient pass their input through.
+if (!style.red.bold("x").includes("x")) {
+  console.error("ESM probe: style chain did not pass through input");
+  process.exit(1);
+}
+if (!gradient(["#f00", "#00f"])("hi").includes("h")) {
+  console.error("ESM probe: gradient() did not pass through input");
   process.exit(1);
 }
 
@@ -117,7 +129,7 @@ run("node probe.mjs", { cwd: sandbox, stdio: "inherit" });
 writeFileSync(
   join(sandbox, "probe.cjs"),
   `
-const { createCLI, parseArgs, bold, box, table, list, divider, log } = require("@arshad-shah/clif");
+const { createCLI, parseArgs, bold, box, table, list, divider, log, style, gradient, link } = require("@arshad-shah/clif");
 const { text, confirm, select } = require("@arshad-shah/clif/prompts");
 
 const checks = {
@@ -129,6 +141,9 @@ const checks = {
   list:      typeof list      === "function",
   divider:   typeof divider   === "function",
   "log.info":    typeof log?.info    === "function",
+  style:    typeof style    === "function",
+  gradient: typeof gradient === "function",
+  link:     typeof link     === "function",
   text:    typeof text    === "function",
   confirm: typeof confirm === "function",
   select:  typeof select  === "function",
@@ -136,6 +151,10 @@ const checks = {
 
 if (!box("hello", { border: "round" }).includes("hello")) {
   console.error("CJS probe: box() did not include content");
+  process.exit(1);
+}
+if (!style.bold("x").includes("x") || !gradient(["#f00", "#00f"])("hi").includes("h")) {
+  console.error("CJS probe: style/gradient did not pass through input");
   process.exit(1);
 }
 

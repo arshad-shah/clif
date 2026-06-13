@@ -6,7 +6,10 @@ export default defineConfig({
   dts: true,
   clean: true,
   sourcemap: true,
-  minify: false,
+  // Minify published bundles: drops comments/whitespace and mangles internals,
+  // keeping the shipped artifacts well under the per-format size budget. Source
+  // and the generated .d.ts (with full JSDoc) stay human-readable.
+  minify: true,
   target: "node22",
   shims: false,
 });
