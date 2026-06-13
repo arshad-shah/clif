@@ -10,7 +10,9 @@
  *  - Validation errors stay inside the prompt; the user is re-prompted.
  */
 
+import { CLEAR_LINE, CLEAR_PREV_LINE, cursorUp } from "../core/ansi.js";
 import { bold, cyan, dim, green, red } from "../core/colors.js";
+import { statusIcon, symbols } from "../core/symbols.js";
 
 // ── Error type ──────────────────────────────────────────────────────────────
 
@@ -78,8 +80,23 @@ function write(text: string): void {
 }
 
 function clearLine(): void {
-  write("\r\x1b[K");
+  write(CLEAR_LINE);
 }
+
+/**
+ * Raw input bytes the prompts decode. Centralised so the control-character
+ * literals aren't re-typed across the line reader, password reader, and menu
+ * key decoder.
+ */
+const KEY = {
+  cr: "\r",
+  lf: "\n",
+  ctrlC: "\x03",
+  del: "\x7f",
+  backspace: "\b",
+  arrowUp: "\x1b[A",
+  arrowDown: "\x1b[B",
+} as const;
 
 /**
  * Enter raw-input mode and return a teardown closure that restores the prior
@@ -98,17 +115,13 @@ function enterRawMode(stdin: StdinLike): () => void {
 
 /** Format the interactive question header shown to the user. */
 function formatQuestion(message: string): string {
-  return `${cyan("?")} ${bold(message)}`;
+  return `${cyan(symbols.question)} ${bold(message)}`;
 }
 
 /** Format the final "answered" summary line. Includes a trailing newline. */
 function formatAnswer(message: string, display: string): string {
-  return `${green("✔")} ${bold(message)} ${dim("·")} ${display}\n`;
+  return `${statusIcon("success")} ${bold(message)} ${dim("·")} ${display}\n`;
 }
-
-/** Move the cursor up one row and clear it — used to overwrite a question
- * prompt with its answered-summary on completion. */
-const CLEAR_PREV_LINE = "\x1b[1A\r\x1b[K";
 
 /**
  * Read a single line of input character-by-character via raw stdin.
@@ -139,19 +152,19 @@ function readLineRaw(): Promise<string> {
       const chunk = typeof data === "string" ? data : data.toString();
       for (let i = 0; i < chunk.length; i++) {
         const ch = chunk[i]!;
-        if (ch === "\r" || ch === "\n") {
+        if (ch === KEY.cr || ch === KEY.lf) {
           cleanup();
           write("\n");
           resolve(buffer);
           return;
         }
-        if (ch === "\x03") {
+        if (ch === KEY.ctrlC) {
           cleanup();
           write("\n");
           reject(new PromptError("cancelled"));
           return;
         }
-        if (ch === "\x7f" || ch === "\b") {
+        if (ch === KEY.del || ch === KEY.backspace) {
           if (buffer.length > 0) {
             buffer = buffer.slice(0, -1);
             write("\b \b");
@@ -187,7 +200,7 @@ export async function text(opts: TextOptions): Promise<string> {
   write(`${formatQuestion(message)}${defaultHint} ${placeholderHint}\n`);
 
   while (true) {
-    write(`${cyan("❯")} `);
+    write(`${cyan(symbols.pointer)} `);
     const input = await readLineRaw();
     const value = input.trim() || opts.default || "";
 
@@ -219,12 +232,12 @@ export interface PasswordOptions {
 
 export async function password(opts: PasswordOptions): Promise<string> {
   requireTTY();
-  const { message, mask = "●", validate } = opts;
+  const { message, mask = symbols.bullet, validate } = opts;
   const { stdin } = getStdio();
 
   return new Promise<string>((resolve, reject) => {
     write(`${formatQuestion(message)}\n`);
-    write(`${cyan("❯")} `);
+    write(`${cyan(symbols.pointer)} `);
 
     const restoreMode = enterRawMode(stdin);
 
@@ -242,12 +255,12 @@ export async function password(opts: PasswordOptions): Promise<string> {
       for (let i = 0; i < chunk.length; i++) {
         const ch = chunk[i]!;
 
-        if (ch === "\r" || ch === "\n") {
+        if (ch === KEY.cr || ch === KEY.lf) {
           if (validate) {
             const result = validate(value);
             if (result !== true) {
               write(`\n${red("!")} ${result}\n`);
-              write(`${cyan("❯")} `);
+              write(`${cyan(symbols.pointer)} `);
               value = "";
               return;
             }
@@ -258,16 +271,16 @@ export async function password(opts: PasswordOptions): Promise<string> {
           return;
         }
 
-        if (ch === "\x7f" || ch === "\b") {
+        if (ch === KEY.del || ch === KEY.backspace) {
           if (value.length > 0) {
             value = value.slice(0, -1);
             clearLine();
-            write(`${cyan("❯")} ${mask.repeat(value.length)}`);
+            write(`${cyan(symbols.pointer)} ${mask.repeat(value.length)}`);
           }
           continue;
         }
 
-        if (ch === "\x03") {
+        if (ch === KEY.ctrlC) {
           cleanup();
           write("\n");
           reject(new PromptError("cancelled"));
@@ -333,12 +346,12 @@ interface MenuKey {
 
 function decodeKey(s: string): MenuKey {
   return {
-    up: s === "\x1b[A" || s === "k",
-    down: s === "\x1b[B" || s === "j",
-    enter: s === "\r" || s === "\n",
+    up: s === KEY.arrowUp || s === "k",
+    down: s === KEY.arrowDown || s === "j",
+    enter: s === KEY.cr || s === KEY.lf,
     space: s === " ",
     toggleAll: s === "a",
-    ctrlC: s === "\x03",
+    ctrlC: s === KEY.ctrlC,
   };
 }
 
@@ -355,8 +368,12 @@ function renderMenu(
   for (let i = 0; i < options.length; i++) {
     const opt = options[i]!;
     const active = i === cursor;
-    const prefix = active ? cyan("❯") : " ";
-    const checkbox = selected ? (selected.has(i) ? `${green("◉")} ` : `${dim("○")} `) : "";
+    const prefix = active ? cyan(symbols.pointer) : " ";
+    const checkbox = selected
+      ? selected.has(i)
+        ? `${green(symbols.radioOn)} `
+        : `${dim(symbols.radioOff)} `
+      : "";
     const label = opt.disabled ? dim(opt.label) : active ? cyan(opt.label) : opt.label;
     const hintStr = opt.hint ? dim(` (${opt.hint})`) : "";
     const disabled = opt.disabled ? dim(" (disabled)") : "";
@@ -380,16 +397,16 @@ function createMenuPainter() {
   return {
     paint(body: string): void {
       const lines = body.split("\n");
-      if (!firstPaint) write(`\x1b[${lastLineCount}A`);
+      if (!firstPaint) write(cursorUp(lastLineCount));
       firstPaint = false;
-      for (const line of lines) write(`\r\x1b[K${line}\n`);
+      for (const line of lines) write(`${CLEAR_LINE}${line}\n`);
       lastLineCount = lines.length;
     },
     /** Clear the prior menu and emit a single summary line in its place. */
     replaceWith(summary: string): void {
-      write(`\x1b[${lastLineCount}A`);
-      for (let i = 0; i < lastLineCount; i++) write("\r\x1b[K\n");
-      write(`\x1b[${lastLineCount}A`);
+      write(cursorUp(lastLineCount));
+      for (let i = 0; i < lastLineCount; i++) write(`${CLEAR_LINE}\n`);
+      write(cursorUp(lastLineCount));
       write(summary);
     },
   };

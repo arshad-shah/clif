@@ -8,6 +8,7 @@
 
 import { type ArgDef, ArgError, type ParsedArgs, parseArgs } from "./args.js";
 import { bold, dim, red } from "./colors.js";
+import { symbols } from "./symbols.js";
 
 export interface CommandDef<A extends Record<string, ArgDef> = Record<string, ArgDef>> {
   name: string;
@@ -202,7 +203,10 @@ async function runCommand(root: InternalCommand, opts?: RunOptions): Promise<voi
 
 function formatError(error: Error): void {
   // ArgError messages are already explicit; render with a friendly prefix.
-  const prefix = error instanceof ArgError ? red(bold("✖ Invalid argument")) : red(bold("✖ Error"));
+  const prefix =
+    error instanceof ArgError
+      ? red(bold(`${symbols.error} Invalid argument`))
+      : red(bold(`${symbols.error} Error`));
   process.stderr.write(`${prefix} ${error.message}\n`);
 }
 
