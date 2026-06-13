@@ -87,12 +87,18 @@ export {
   bgRgb,
   hex,
   bgHex,
+  rgbToAnsi256,
+  rgbToAnsi16,
+  // Chainable / composite
+  style,
+  gradient,
+  link,
   // Utilities
   compose,
   stripAnsi,
   visibleLength,
 } from "./core/colors.js";
-export type { Formatter } from "./core/colors.js";
+export type { Formatter, Style, ColorStop } from "./core/colors.js";
 
 // Output components
 export {

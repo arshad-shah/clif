@@ -35,6 +35,29 @@ console.log(heading("Section Title"));
 console.log(error("Something went wrong"));
 ```
 
+## Chainable styles
+
+Prefer a fluent, chalk-style API? `style` lets you stack any formatter and call
+it on a string. Every access returns a fresh, immutable builder, so intermediate
+styles are safe to capture and reuse.
+
+```typescript
+import { style } from "@arshad-shah/clif";
+
+console.log(style.red.bold.underline("error"));
+console.log(style.bgBlue.white(" status "));
+
+// Extended colors are methods on the chain
+console.log(style.hex("#f5c76a").bold("title"));
+console.log(style.rgb(255, 136, 0)("custom orange"));
+console.log(style.ansi256(208)("palette orange"));
+
+// Capture a builder and branch off it — the original is never mutated
+const heading = style.bold.cyan;
+console.log(heading("Section"));
+console.log(heading.underline("Emphasised section"));
+```
+
 ## Available formatters
 
 ### Modifiers
@@ -68,9 +91,61 @@ console.log(rgb256(208)("orange"));
 // Truecolor (RGB values)
 console.log(rgb(255, 136, 0)("custom orange"));
 
-// Hex colors
+// Hex colors — full or 3-digit shorthand (#f80 → #ff8800)
 console.log(hex("#ff8800")("hex orange"));
+console.log(hex("#f80")("shorthand orange"));
 console.log(bgHex("#1a1a2e")("dark background"));
+```
+
+## Gradients
+
+`gradient` paints text with a smooth multi-stop gradient — one interpolated
+color per visible character. It returns a regular formatter, so it composes and
+inherits the same automatic downgrading as `rgb`.
+
+```typescript
+import { gradient, bold } from "@arshad-shah/clif";
+
+console.log(gradient(["#ff0080", "#7928ca"])("hello world"));
+console.log(gradient(["#f00", "#0f0", "#00f"])("rainbow"));
+
+// Accepts [r, g, b] tuples too, and composes with other formatters
+console.log(bold(gradient([[255, 136, 0], [255, 0, 128]])("fire")));
+```
+
+## Hyperlinks
+
+`link` emits an OSC 8 terminal hyperlink. On terminals without link/color
+support it degrades to `text (url)` so the URL is never lost.
+
+```typescript
+import { link } from "@arshad-shah/clif";
+
+console.log(link("clif docs", "https://clif.arshadshah.com"));
+```
+
+## Automatic downgrading
+
+Truecolor and 256-color formatters never silently drop color on weaker
+terminals — they map to the nearest color the terminal can render
+(truecolor → 256 → 16):
+
+```typescript
+import { rgb, colorLevel } from "@arshad-shah/clif";
+
+colorLevel(3); // rgb(255, 0, 0) → exact truecolor
+colorLevel(2); // → nearest 256-color index (196)
+colorLevel(1); // → nearest basic color (bright red)
+colorLevel(0); // → plain text
+```
+
+You can reach the conversions directly when you need them:
+
+```typescript
+import { rgbToAnsi256, rgbToAnsi16 } from "@arshad-shah/clif";
+
+rgbToAnsi256(255, 136, 0); // 214
+rgbToAnsi16(255, 0, 0); // 91 (bright red SGR code)
 ```
 
 ## Color detection

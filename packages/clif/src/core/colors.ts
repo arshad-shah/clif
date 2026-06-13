@@ -46,12 +46,16 @@ export function isColorSupported(): boolean {
 
 type Formatter = (text: string) => string;
 
+/**
+ * Wrap `text` in an SGR open/close pair, rewriting any nested close sequences
+ * back to the outer open so styles survive nesting (`bold(red(x))` keeps both).
+ */
+function wrap(open: string, close: string, text: string): string {
+  return `\x1b[${open}m${text.replaceAll(`\x1b[${close}m`, `\x1b[${open}m`)}\x1b[${close}m`;
+}
+
 function fmt(open: string, close: string): Formatter {
-  return (text: string) => {
-    if (_level === 0) return text;
-    // Handle nested resets: replace inner close sequences so nesting works
-    return `\x1b[${open}m${text.replaceAll(`\x1b[${close}m`, `\x1b[${open}m`)}\x1b[${close}m`;
-  };
+  return (text: string) => (_level === 0 ? text : wrap(open, close, text));
 }
 
 // ── Modifiers ───────────────────────────────────────────────────────────────
@@ -115,56 +119,117 @@ function assertByte(label: string, n: number): void {
   }
 }
 
-/** 256-color foreground (0–255) */
+// ── Color-space downgrading ──────────────────────────────────────────────────
+// When a terminal can't render an exact RGB value, map it to the nearest color
+// it CAN render (truecolor → 256 → 16) instead of dropping the color entirely.
+
+/** Map an RGB triplet to the nearest 256-color palette index (0–255). */
+export function rgbToAnsi256(r: number, g: number, b: number): number {
+  if (r === g && g === b) {
+    if (r < 8) return 16;
+    if (r > 248) return 231;
+    return Math.round(((r - 8) / 247) * 24) + 232;
+  }
+  return (
+    16 + 36 * Math.round((r / 255) * 5) + 6 * Math.round((g / 255) * 5) + Math.round((b / 255) * 5)
+  );
+}
+
+/** Map a 256-color index to the nearest basic SGR code (30–37 / 90–97). */
+function ansi256ToAnsi16(code: number): number {
+  if (code < 8) return 30 + code;
+  if (code < 16) return 90 + (code - 8);
+  let r: number;
+  let g: number;
+  let b: number;
+  if (code >= 232) {
+    const c = ((code - 232) * 10 + 8) / 255;
+    r = c;
+    g = c;
+    b = c;
+  } else {
+    const c = code - 16;
+    const rem = c % 36;
+    r = Math.floor(c / 36) / 5;
+    g = Math.floor(rem / 6) / 5;
+    b = (rem % 6) / 5;
+  }
+  const value = Math.max(r, g, b) * 2;
+  if (value === 0) return 30;
+  let result = 30 + ((Math.round(b) << 2) | (Math.round(g) << 1) | Math.round(r));
+  if (value === 2) result += 60;
+  return result;
+}
+
+/** Map an RGB triplet to the nearest basic SGR code (30–37 / 90–97). */
+export function rgbToAnsi16(r: number, g: number, b: number): number {
+  return ansi256ToAnsi16(rgbToAnsi256(r, g, b));
+}
+
+/** Level-aware 256-color formatter, downgrading to 16 colors when needed. */
+function ansi256Formatter(code: number, bg: boolean): Formatter {
+  const close = bg ? "49" : "39";
+  return (text: string) => {
+    if (_level === 0) return text;
+    if (_level >= 2) return wrap(`${bg ? 48 : 38};5;${code}`, close, text);
+    return wrap(String(ansi256ToAnsi16(code) + (bg ? 10 : 0)), close, text);
+  };
+}
+
+/** Level-aware truecolor formatter, downgrading to 256 → 16 when needed. */
+function rgbFormatter(r: number, g: number, b: number, bg: boolean): Formatter {
+  const close = bg ? "49" : "39";
+  return (text: string) => {
+    if (_level === 0) return text;
+    if (_level >= 3) return wrap(`${bg ? 48 : 38};2;${r};${g};${b}`, close, text);
+    if (_level === 2) return wrap(`${bg ? 48 : 38};5;${rgbToAnsi256(r, g, b)}`, close, text);
+    return wrap(String(rgbToAnsi16(r, g, b) + (bg ? 10 : 0)), close, text);
+  };
+}
+
+/** 256-color foreground (0–255). Downgrades to 16 colors below level 2. */
 export function rgb256(code: number): Formatter {
   assertByte("rgb256", code);
-  return (text: string) => {
-    if (_level < 2) return text;
-    return `\x1b[38;5;${code}m${text}\x1b[39m`;
-  };
+  return ansi256Formatter(code, false);
 }
 
-/** 256-color background (0–255) */
+/** 256-color background (0–255). Downgrades to 16 colors below level 2. */
 export function bgRgb256(code: number): Formatter {
   assertByte("bgRgb256", code);
-  return (text: string) => {
-    if (_level < 2) return text;
-    return `\x1b[48;5;${code}m${text}\x1b[49m`;
-  };
+  return ansi256Formatter(code, true);
 }
 
-/** Truecolor foreground */
+/** Truecolor foreground. Downgrades to 256 → 16 colors on weaker terminals. */
 export function rgb(r: number, g: number, b: number): Formatter {
   assertByte("rgb.r", r);
   assertByte("rgb.g", g);
   assertByte("rgb.b", b);
-  return (text: string) => {
-    if (_level < 3) return text;
-    return `\x1b[38;2;${r};${g};${b}m${text}\x1b[39m`;
-  };
+  return rgbFormatter(r, g, b, false);
 }
 
-/** Truecolor background */
+/** Truecolor background. Downgrades to 256 → 16 colors on weaker terminals. */
 export function bgRgb(r: number, g: number, b: number): Formatter {
   assertByte("bgRgb.r", r);
   assertByte("bgRgb.g", g);
   assertByte("bgRgb.b", b);
-  return (text: string) => {
-    if (_level < 3) return text;
-    return `\x1b[48;2;${r};${g};${b}m${text}\x1b[49m`;
-  };
+  return rgbFormatter(r, g, b, true);
 }
 
 const HEX6_RE = /^[0-9a-fA-F]{6}$/;
+const HEX3_RE = /^[0-9a-fA-F]{3}$/;
 
 function parseHex(color: string): [number, number, number] {
   if (typeof color !== "string") {
     throw new TypeError(`hex: expected a string, got ${typeof color}`);
   }
-  const c = color.startsWith("#") ? color.slice(1) : color;
+  let c = color.startsWith("#") ? color.slice(1) : color;
+  // Expand 3-digit shorthand (#f0a → ff00aa) before validation.
+  if (HEX3_RE.test(c)) {
+    c = `${c[0]}${c[0]}${c[1]}${c[1]}${c[2]}${c[2]}`;
+  }
   if (!HEX6_RE.test(c)) {
     throw new RangeError(
-      `hex: expected a 6-digit hex color (e.g. "#ff0000" or "ff0000"), got "${color}"`,
+      `hex: expected a 3- or 6-digit hex color (e.g. "#f00", "#ff0000" or "ff0000"), got "${color}"`,
     );
   }
   return [
@@ -174,7 +239,7 @@ function parseHex(color: string): [number, number, number] {
   ];
 }
 
-/** Hex foreground (#ff0000 or ff0000). Throws on invalid input. */
+/** Hex foreground (#ff0000, ff0000, or shorthand #f00). Throws on invalid input. */
 export function hex(color: string): Formatter {
   const [r, g, b] = parseHex(color);
   return rgb(r, g, b);
@@ -193,17 +258,234 @@ export function compose(...formatters: Formatter[]): Formatter {
   return (text: string) => formatters.reduceRight((acc, fn) => fn(acc), text);
 }
 
+// ── Gradient ──────────────────────────────────────────────────────────────────
+
+/** A color stop: either a hex string (`"#ff0000"`, `"#f00"`) or an `[r, g, b]` triplet. */
+export type ColorStop = string | readonly [number, number, number];
+
+function stopToRgb(stop: ColorStop): [number, number, number] {
+  if (typeof stop === "string") return parseHex(stop);
+  const [r, g, b] = stop;
+  assertByte("gradient.r", r);
+  assertByte("gradient.g", g);
+  assertByte("gradient.b", b);
+  return [r, g, b];
+}
+
+/**
+ * Paint text with a smooth multi-stop gradient — one interpolated color per
+ * visible character. Composes like any formatter and inherits rgb() downgrading.
+ *
+ * @example
+ * ```ts
+ * console.log(gradient(["#ff0080", "#7928ca"])("hello world"));
+ * console.log(gradient(["#f00", "#0f0", "#00f"])("rainbow"));
+ * ```
+ */
+export function gradient(colors: readonly ColorStop[]): Formatter {
+  if (colors.length === 0) {
+    throw new RangeError("gradient: expected at least one color stop");
+  }
+  const stops = colors.map(stopToRgb);
+  return (text: string) => {
+    if (_level === 0) return text;
+    const chars = [...text];
+    const n = chars.length;
+    if (n === 0) return text;
+    if (stops.length === 1) {
+      const [r, g, b] = stops[0]!;
+      return rgb(r, g, b)(text);
+    }
+    const segments = stops.length - 1;
+    let out = "";
+    for (let i = 0; i < n; i++) {
+      const pos = n === 1 ? 0 : (i / (n - 1)) * segments;
+      const idx = Math.min(Math.floor(pos), segments - 1);
+      const frac = pos - idx;
+      const a = stops[idx]!;
+      const b = stops[idx + 1]!;
+      out += rgb(
+        Math.round(a[0] + (b[0] - a[0]) * frac),
+        Math.round(a[1] + (b[1] - a[1]) * frac),
+        Math.round(a[2] + (b[2] - a[2]) * frac),
+      )(chars[i]!);
+    }
+    return out;
+  };
+}
+
+// ── Hyperlinks ────────────────────────────────────────────────────────────────
+
+/**
+ * Render a clickable terminal hyperlink (OSC 8). Without color/link support it
+ * degrades to `text (url)` so the URL is never lost.
+ *
+ * @example
+ * ```ts
+ * console.log(link("clif docs", "https://clif.arshadshah.com"));
+ * ```
+ */
+export function link(text: string, url: string): string {
+  if (_level === 0) return text === url ? text : `${text} (${url})`;
+  return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
+}
+
+// ── Chainable style API ─────────────────────────────────────────────────────
+
+/**
+ * A chainable, callable style builder. Stack any named formatter and call it on
+ * a string: `style.red.bold.underline("error")`. Extended colors are methods:
+ * `style.hex("#f5c76a").bold("title")`, `style.bgRgb(20, 20, 40).white(" hi ")`.
+ *
+ * Each access returns a fresh, immutable builder, so intermediate styles are
+ * safe to capture and reuse: `const heading = style.bold.cyan;`.
+ */
+export interface Style {
+  (text: string): string;
+  // Modifiers
+  readonly reset: Style;
+  readonly bold: Style;
+  readonly dim: Style;
+  readonly italic: Style;
+  readonly underline: Style;
+  readonly inverse: Style;
+  readonly hidden: Style;
+  readonly strikethrough: Style;
+  // Foreground
+  readonly black: Style;
+  readonly red: Style;
+  readonly green: Style;
+  readonly yellow: Style;
+  readonly blue: Style;
+  readonly magenta: Style;
+  readonly cyan: Style;
+  readonly white: Style;
+  readonly gray: Style;
+  readonly grey: Style;
+  readonly redBright: Style;
+  readonly greenBright: Style;
+  readonly yellowBright: Style;
+  readonly blueBright: Style;
+  readonly magentaBright: Style;
+  readonly cyanBright: Style;
+  readonly whiteBright: Style;
+  // Background
+  readonly bgBlack: Style;
+  readonly bgRed: Style;
+  readonly bgGreen: Style;
+  readonly bgYellow: Style;
+  readonly bgBlue: Style;
+  readonly bgMagenta: Style;
+  readonly bgCyan: Style;
+  readonly bgWhite: Style;
+  readonly bgGray: Style;
+  readonly bgRedBright: Style;
+  readonly bgGreenBright: Style;
+  readonly bgYellowBright: Style;
+  readonly bgBlueBright: Style;
+  readonly bgMagentaBright: Style;
+  readonly bgCyanBright: Style;
+  readonly bgWhiteBright: Style;
+  // Extended-color methods
+  rgb(r: number, g: number, b: number): Style;
+  bgRgb(r: number, g: number, b: number): Style;
+  rgb256(code: number): Style;
+  bgRgb256(code: number): Style;
+  ansi256(code: number): Style;
+  bgAnsi256(code: number): Style;
+  hex(color: string): Style;
+  bgHex(color: string): Style;
+}
+
+const NAMED_STYLES: Record<string, Formatter> = {
+  reset,
+  bold,
+  dim,
+  italic,
+  underline,
+  inverse,
+  hidden,
+  strikethrough,
+  black,
+  red,
+  green,
+  yellow,
+  blue,
+  magenta,
+  cyan,
+  white,
+  gray,
+  grey,
+  redBright,
+  greenBright,
+  yellowBright,
+  blueBright,
+  magentaBright,
+  cyanBright,
+  whiteBright,
+  bgBlack,
+  bgRed,
+  bgGreen,
+  bgYellow,
+  bgBlue,
+  bgMagenta,
+  bgCyan,
+  bgWhite,
+  bgGray,
+  bgRedBright,
+  bgGreenBright,
+  bgYellowBright,
+  bgBlueBright,
+  bgMagentaBright,
+  bgCyanBright,
+  bgWhiteBright,
+};
+
+type ColorMethod = (...args: (number | string)[]) => Formatter;
+
+const STYLE_METHODS: Record<string, ColorMethod> = {
+  rgb: rgb as ColorMethod,
+  bgRgb: bgRgb as ColorMethod,
+  rgb256: rgb256 as ColorMethod,
+  bgRgb256: bgRgb256 as ColorMethod,
+  ansi256: rgb256 as ColorMethod,
+  bgAnsi256: bgRgb256 as ColorMethod,
+  hex: hex as ColorMethod,
+  bgHex: bgHex as ColorMethod,
+};
+
+function makeStyle(fns: readonly Formatter[]): Style {
+  const apply = ((text: string) => fns.reduceRight((acc, fn) => fn(acc), text)) as Style;
+  return new Proxy(apply, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string") {
+        const named = NAMED_STYLES[prop];
+        if (named) return makeStyle([...fns, named]);
+        const method = STYLE_METHODS[prop];
+        if (method) {
+          return (...args: (number | string)[]): Style => makeStyle([...fns, method(...args)]);
+        }
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  }) as Style;
+}
+
+/** Chainable style builder — see {@link Style}. */
+export const style: Style = makeStyle([]);
+
 // ── Strip ANSI ──────────────────────────────────────────────────────────────
 
 /**
- * Build a fresh global RegExp that matches a single ANSI SGR escape sequence.
+ * Build a fresh global RegExp matching one ANSI escape — an SGR code (`\x1b[…m`)
+ * or an OSC 8 hyperlink wrapper (`\x1b]8;;…\x07`).
  *
  * A factory (rather than a shared instance) is exposed because `.exec()` on a
  * `/g` regex carries `lastIndex` state — sharing one instance across modules
  * would invite subtle cross-call bugs.
  */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC (0x1b) is the leading byte of every ANSI escape sequence we want to strip.
-export const makeAnsiRegex = (): RegExp => /\x1b\[[0-9;]*m/g;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: ESC (0x1b) and BEL (0x07) bound the ANSI escape sequences we strip.
+export const makeAnsiRegex = (): RegExp => /\x1b\[[0-9;]*m|\x1b\]8;;[^\x07]*\x07/g;
 
 const ANSI_RE = makeAnsiRegex();
 

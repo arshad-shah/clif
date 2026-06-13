@@ -21,17 +21,20 @@ import {
   cyanBright,
   dim,
   divider,
+  gradient,
   green,
   hex,
   inverse,
   italic,
   keyValue,
+  link,
   list,
   log,
   magenta,
   red,
   rgb,
   strikethrough,
+  style,
   table,
   tree,
   underline,
@@ -79,6 +82,22 @@ export function demoColors(): void {
   section("colors — compose");
   const headline = compose(bold, underline, hex("#f5c76a"));
   process.stdout.write(`${headline("composed: bold + underline + hex")}\n`);
+
+  section("colors — chainable style");
+  process.stdout.write(
+    `${[
+      style.red.bold("style.red.bold"),
+      style.bgBlue.white(" style.bgBlue.white "),
+      style.hex("#f5c76a").underline("style.hex().underline"),
+    ].join("  ")}\n`,
+  );
+
+  section("colors — gradient");
+  process.stdout.write(`${gradient(["#ff0080", "#7928ca"])("smooth two-stop gradient")}\n`);
+  process.stdout.write(`${bold(gradient(["#f00", "#0f0", "#00f"])("multi-stop rainbow text"))}\n`);
+
+  section("colors — hyperlink (OSC 8)");
+  process.stdout.write(`${link("clif docs", "https://clif.arshadshah.com")}\n`);
 }
 
 export function demoBox(): void {
