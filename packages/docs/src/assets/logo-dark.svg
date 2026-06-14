@@ -1,37 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="clif">
+  <!--
+    clif monogram — a geometric "c" (clif / CLI) opening onto a terminal
+    cursor block. Dark-theme variant: bright ember gradient with a cream cursor.
+  -->
   <defs>
-    <linearGradient id="emberDark" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="clifDark" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f5c76a"/>
       <stop offset="55%" stop-color="#d4860b"/>
       <stop offset="100%" stop-color="#9a5a05"/>
     </linearGradient>
-    <linearGradient id="emberDarkSheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
-      <stop offset="50%" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="emberDarkGlow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="1.2" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
   </defs>
-
-  <!-- Tile -->
-  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#emberDark)"/>
-  <!-- Glossy top sheen -->
-  <rect x="2" y="2" width="60" height="30" rx="14" fill="url(#emberDarkSheen)"/>
-  <!-- Inner hairline for depth -->
-  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="13.25"
-        fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="0.75"/>
-  <!-- Outer rim shadow -->
-  <rect x="2" y="2" width="60" height="60" rx="14"
-        fill="none" stroke="#3a1f04" stroke-opacity="0.55" stroke-width="1"/>
-
-  <!-- Chevron > -->
-  <path d="M18 22 L30 32 L18 42"
-        stroke="#1a0f04" stroke-width="5"
-        stroke-linecap="round" stroke-linejoin="round"
-        filter="url(#emberDarkGlow)"/>
-
-  <!-- Cursor underscore -->
-  <rect x="34" y="40" width="14" height="4" rx="1.5" fill="#1a0f04"/>
+  <path d="M45.3 19.1 A20 20 0 1 0 45.3 44.9" stroke="url(#clifDark)" stroke-width="9" stroke-linecap="round"/>
+  <rect x="38" y="25" width="13" height="13" rx="3" fill="#fef3e0"/>
 </svg>

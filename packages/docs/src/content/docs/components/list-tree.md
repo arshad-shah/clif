@@ -24,6 +24,15 @@ console.log(list(["First", "Second", "Third"], { ordered: true }));
 list(["Item"], { marker: "→", indent: 4 });
 ```
 
+### List options
+
+| Option        | Type        | Default | Description                                       |
+| ------------- | ----------- | ------- | ------------------------------------------------- |
+| `marker`      | `string`    | `●`     | Bullet glyph (ignored when `ordered` is `true`)   |
+| `markerColor` | `Formatter` | `cyan`  | Color applied to the marker / ordinal             |
+| `indent`      | `number`    | `0`     | Leading spaces before each item                   |
+| `ordered`     | `boolean`   | `false` | Render `1.`, `2.`, … instead of the bullet marker |
+
 ## Tree
 
 ```typescript

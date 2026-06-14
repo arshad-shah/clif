@@ -24,6 +24,8 @@ export type {
   ArgDef,
   ParsedArgs,
   ParseOptions,
+  PositionalDef,
+  PositionalValue,
   FlagValueOf,
   FlagsFromDefs,
 } from "./core/args.js";
@@ -114,6 +116,7 @@ export {
   log,
 } from "./output/components.js";
 export type {
+  Align,
   BoxOptions,
   BoxBorder,
   TableOptions,
@@ -123,6 +126,16 @@ export type {
   SpinnerOptions,
   ProgressOptions,
 } from "./output/components.js";
+
+// Task runner
+export { createTaskList } from "./output/tasks.js";
+export type {
+  TaskNode,
+  TaskContext,
+  TaskListOptions,
+  TaskListResult,
+  TaskStatus,
+} from "./output/tasks.js";
 
 // Utilities
 export {

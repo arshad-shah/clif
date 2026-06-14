@@ -31,18 +31,39 @@ console.log(divider({ label: "Configuration", width: 40 }));
 
 console.log(divider({ char: "═", width: 30 }));
 // ══════════════════════════════
+
+import { cyan } from "@arshad-shah/clif";
+console.log(divider({ label: "Section", color: cyan }));
 ```
+
+### Divider options
+
+| Option  | Type        | Default | Description                               |
+| ------- | ----------- | ------- | ----------------------------------------- |
+| `width` | `number`    | `60`    | Total width in characters                 |
+| `char`  | `string`    | `─`     | Fill character                            |
+| `label` | `string`    | —       | Optional centered label                   |
+| `color` | `Formatter` | `dim`   | Color applied to the fill (not the label) |
 
 ## Banner
 
 ```typescript
-import { banner } from "@arshad-shah/clif";
+import { banner, bold } from "@arshad-shah/clif";
 
 console.log(banner("Deploy v2.0"));
 // ══════════════════
 // ═ Deploy v2.0   ═
 // ══════════════════
+
+console.log(banner("Release", { char: "#", color: bold }));
 ```
+
+### Banner options
+
+| Option  | Type        | Default | Description       |
+| ------- | ----------- | ------- | ----------------- |
+| `color` | `Formatter` | `bold`  | Color of the text |
+| `char`  | `string`    | `═`     | Border character  |
 
 ## Key-Value display
 
@@ -62,3 +83,12 @@ console.log(
 // platform   linux
 // uptime     3h 42m
 ```
+
+### Key-Value options
+
+| Option       | Type        | Default  | Description                           |
+| ------------ | ----------- | -------- | ------------------------------------- |
+| `separator`  | `string`    | `"  "`   | Text placed between the key and value |
+| `keyColor`   | `Formatter` | `dim`    | Color applied to each key             |
+| `valueColor` | `Formatter` | identity | Color applied to each value           |
+| `indent`     | `number`    | `0`      | Leading spaces before each row        |

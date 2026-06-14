@@ -24,6 +24,8 @@ export const symbols = {
   /** Checked / unchecked checkbox in a multi-select. */
   radioOn: "◉",
   radioOff: "○",
+  /** A skipped task / step. */
+  skipped: "⊘",
 } as const;
 
 /** Single-line box-drawing characters shared by `box` and `table`. */
@@ -39,6 +41,39 @@ export const boxChars = {
   teeRight: "├",
   teeLeft: "┤",
   cross: "┼",
+} as const;
+
+/**
+ * Glyph sets for every `box` / `table` border style, keyed by name. `single`
+ * reuses {@link boxChars} so the base line-drawing glyphs live in exactly one
+ * place; the heavier variants and the blank `none` set are defined here too so
+ * the renderer never inlines raw box-drawing characters.
+ */
+export const boxStyles = {
+  single: {
+    tl: boxChars.topLeft,
+    tr: boxChars.topRight,
+    bl: boxChars.bottomLeft,
+    br: boxChars.bottomRight,
+    h: boxChars.horizontal,
+    v: boxChars.vertical,
+  },
+  double: { tl: "╔", tr: "╗", bl: "╚", br: "╝", h: "═", v: "║" },
+  round: { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│" },
+  bold: { tl: "┏", tr: "┓", bl: "┗", br: "┛", h: "━", v: "┃" },
+  none: { tl: " ", tr: " ", bl: " ", br: " ", h: " ", v: " " },
+} as const;
+
+/** Connectors used by the `tree` renderer to draw the branch gutter. */
+export const treeChars = {
+  /** Branch leading to a non-final child. */
+  branch: "├── ",
+  /** Branch leading to the final child. */
+  lastBranch: "└── ",
+  /** Continuation gutter for descendants of a non-final child. */
+  vertical: "│   ",
+  /** Blank gutter for descendants of the final child. */
+  indent: "    ",
 } as const;
 
 /** The four colored status kinds and the formatter each conventionally uses. */

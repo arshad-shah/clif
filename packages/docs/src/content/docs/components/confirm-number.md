@@ -18,7 +18,9 @@ if (proceed) {
 }
 ```
 
-Displays `(Y/n)` or `(y/N)` based on the default. Accepts `y` or `yes` (case-insensitive) as `true`, anything else as `false`. Enter alone returns the default.
+Displays `(Y/n)` or `(y/N)` based on the default. A single `y`/`n` keypress
+resolves immediately (no Enter needed); pressing Enter alone returns the
+default. Piped input also accepts a full `y`/`yes` line (case-insensitive).
 
 ### Confirm options
 
@@ -42,6 +44,9 @@ const port = await number({
 ```
 
 Validates that input is a finite number, within the optional `min`/`max` range, and (if `step` is set) a multiple of `step` anchored to `min` (so `min: 1, step: 2` accepts 1, 3, 5, …). Invalid input re-prompts with a descriptive error.
+
+You can type a value directly, or use the **↑ / ↓ arrow keys** to step the
+current value by `step` (defaulting to 1), clamped to `min`/`max`.
 
 ### Number options
 

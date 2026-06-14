@@ -83,6 +83,16 @@ function clearLine(): void {
   write(CLEAR_LINE);
 }
 
+/** Normalise a raw stdin chunk (Buffer or string) to a string. */
+function toChunk(data: Buffer | string): string {
+  return typeof data === "string" ? data : data.toString();
+}
+
+/** A red validation-error line (no trailing newline), shown when input fails. */
+function errorLine(message: string): string {
+  return `${red("!")} ${message}`;
+}
+
 /**
  * Raw input bytes the prompts decode. Centralised so the control-character
  * literals aren't re-typed across the line reader, password reader, and menu
@@ -149,7 +159,7 @@ function readLineRaw(): Promise<string> {
     };
 
     const onData = (data: Buffer | string) => {
-      const chunk = typeof data === "string" ? data : data.toString();
+      const chunk = toChunk(data);
       for (let i = 0; i < chunk.length; i++) {
         const ch = chunk[i]!;
         if (ch === KEY.cr || ch === KEY.lf) {
@@ -205,14 +215,14 @@ export async function text(opts: TextOptions): Promise<string> {
     const value = input.trim() || opts.default || "";
 
     if (required && !value) {
-      write(`${red("!")} This field is required\n`);
+      write(`${errorLine("This field is required")}\n`);
       continue;
     }
 
     if (validate) {
       const result = validate(value);
       if (result !== true) {
-        write(`${red("!")} ${result}\n`);
+        write(`${errorLine(result)}\n`);
         continue;
       }
     }
@@ -249,7 +259,7 @@ export async function password(opts: PasswordOptions): Promise<string> {
     };
 
     const onData = (data: Buffer | string) => {
-      const chunk = typeof data === "string" ? data : data.toString();
+      const chunk = toChunk(data);
 
       // Process the chunk character-by-character so paste works correctly.
       for (let i = 0; i < chunk.length; i++) {
@@ -259,7 +269,7 @@ export async function password(opts: PasswordOptions): Promise<string> {
           if (validate) {
             const result = validate(value);
             if (result !== true) {
-              write(`\n${red("!")} ${result}\n`);
+              write(`\n${errorLine(result)}\n`);
               write(`${cyan(symbols.pointer)} `);
               value = "";
               return;
@@ -309,15 +319,54 @@ export async function confirm(opts: ConfirmOptions): Promise<boolean> {
   const { message } = opts;
   const defaultVal = opts.default ?? false;
   const hint = defaultVal ? dim("(Y/n)") : dim("(y/N)");
+  const { stdin } = getStdio();
 
   write(`${formatQuestion(message)} ${hint} `);
-  const input = await readLineRaw();
-  const val = input.trim().toLowerCase();
-  const result = val === "" ? defaultVal : val === "y" || val === "yes";
-  const display = result ? green("Yes") : red("No");
-  clearLine();
-  write(`${CLEAR_PREV_LINE}${formatAnswer(message, display)}`);
-  return result;
+
+  return new Promise<boolean>((resolve, reject) => {
+    const restoreMode = enterRawMode(stdin);
+
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.off("line", onLine);
+      restoreMode();
+    };
+
+    const finish = (result: boolean) => {
+      cleanup();
+      const display = result ? green("Yes") : red("No");
+      write("\n");
+      clearLine();
+      write(`${CLEAR_PREV_LINE}${formatAnswer(message, display)}`);
+      resolve(result);
+    };
+
+    // Single keypress: y/n decide immediately, Enter takes the default.
+    const onData = (data: Buffer | string) => {
+      const chunk = toChunk(data);
+      for (const ch of chunk) {
+        if (ch === "y" || ch === "Y") return finish(true);
+        if (ch === "n" || ch === "N") return finish(false);
+        if (ch === KEY.cr || ch === KEY.lf) return finish(defaultVal);
+        if (ch === KEY.ctrlC) {
+          cleanup();
+          write("\n");
+          reject(new PromptError("cancelled"));
+          return;
+        }
+        // ignore any other key and keep waiting
+      }
+    };
+
+    // Line-oriented fast path (piped input / test stdio): accept y/yes.
+    const onLine = (line: string) => {
+      const val = line.trim().toLowerCase();
+      finish(val === "" ? defaultVal : val === "y" || val === "yes");
+    };
+
+    stdin.on("data", onData);
+    stdin.on("line", onLine);
+  });
 }
 
 // ── Select / MultiSelect shared rendering ───────────────────────────────────
@@ -426,25 +475,60 @@ function moveCursor(options: SelectOption<unknown>[], cursor: number, direction:
   return next;
 }
 
-export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
+/**
+ * Shared interactive menu driver for `select` and `multiselect`. Owns the
+ * raw-mode lifecycle, cursor movement, repaint, and key dispatch; the `multi`
+ * flag turns on the selection set, space / `a` toggles, and min/max/required
+ * validation. Resolves with the chosen option indices.
+ */
+function runMenu<T>(config: {
+  message: string;
+  options: SelectOption<T>[];
+  multi: boolean;
+  default?: T | T[];
+  min?: number;
+  max?: number;
+  required?: boolean;
+  hint: string | null;
+}): Promise<number[]> {
   requireTTY();
-  const { message, options } = opts;
-  if (options.length === 0) throw new Error("select: options must not be empty");
-  let cursor = options.findIndex((o) => o.value === opts.default);
-  if (cursor === -1) cursor = 0;
-  while (options[cursor]?.disabled && cursor < options.length - 1) cursor++;
+  const kind = config.multi ? "multiselect" : "select";
+  const { options } = config;
+  if (options.length === 0) throw new Error(`${kind}: options must not be empty`);
 
+  const selected = new Set<number>();
+  let cursor: number;
+  if (config.multi) {
+    const defaults = (config.default as T[] | undefined) ?? [];
+    for (let i = 0; i < options.length; i++) {
+      if (defaults.includes(options[i]!.value)) selected.add(i);
+    }
+    cursor = 0;
+  } else {
+    cursor = options.findIndex((o) => o.value === config.default);
+    if (cursor === -1) cursor = 0;
+    while (options[cursor]?.disabled && cursor < options.length - 1) cursor++;
+  }
+
+  let errorMessage: string | null = null;
   const { stdin } = getStdio();
-  const erasedOptions = options as SelectOption<unknown>[];
+  const erased = options as SelectOption<unknown>[];
 
-  return new Promise<T>((resolve, reject) => {
+  return new Promise<number[]>((resolve, reject) => {
     const restoreMode = enterRawMode(stdin);
     const painter = createMenuPainter();
-
     const repaint = () => {
-      painter.paint(renderMenu(message, erasedOptions, cursor, null, null, null));
+      painter.paint(
+        renderMenu(
+          config.message,
+          erased,
+          cursor,
+          config.multi ? selected : null,
+          errorMessage,
+          config.hint,
+        ),
+      );
     };
-
     repaint();
 
     const cleanup = () => {
@@ -452,31 +536,87 @@ export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
       restoreMode();
     };
 
+    const confirmSelection = () => {
+      if (config.multi) {
+        if (config.min !== undefined && selected.size < config.min) {
+          errorMessage = `Select at least ${config.min}`;
+          repaint();
+          return;
+        }
+        if (config.required && selected.size === 0) {
+          errorMessage = "Select at least 1";
+          repaint();
+          return;
+        }
+        cleanup();
+        const labels = [...selected].map((i) => options[i]!.label).join(", ");
+        painter.replaceWith(formatAnswer(config.message, labels));
+        resolve([...selected]);
+      } else {
+        cleanup();
+        painter.replaceWith(formatAnswer(config.message, options[cursor]!.label));
+        resolve([cursor]);
+      }
+    };
+
     const onData = (data: Buffer | string) => {
-      const s = typeof data === "string" ? data : data.toString();
-      const k = decodeKey(s);
+      const k = decodeKey(toChunk(data));
 
       if (k.up) {
-        cursor = moveCursor(erasedOptions, cursor, -1);
+        cursor = moveCursor(erased, cursor, -1);
+        errorMessage = null;
         repaint();
       } else if (k.down) {
-        cursor = moveCursor(erasedOptions, cursor, 1);
+        cursor = moveCursor(erased, cursor, 1);
+        errorMessage = null;
         repaint();
-      } else if (k.enter) {
-        cleanup();
-        painter.replaceWith(formatAnswer(message, options[cursor]!.label));
-        resolve(options[cursor]!.value);
       } else if (k.ctrlC) {
         cleanup();
         write("\n");
         reject(new PromptError("cancelled"));
+      } else if (config.multi && k.space) {
+        if (!options[cursor]?.disabled) {
+          if (selected.has(cursor)) {
+            selected.delete(cursor);
+          } else if (!config.max || selected.size < config.max) {
+            selected.add(cursor);
+          } else {
+            errorMessage = `Maximum ${config.max} selections allowed`;
+          }
+        }
+        repaint();
+      } else if (config.multi && k.toggleAll) {
+        const allEnabled = options.filter((o) => !o.disabled);
+        if (selected.size === allEnabled.length) {
+          selected.clear();
+        } else {
+          for (let i = 0; i < options.length; i++) {
+            if (!options[i]?.disabled) selected.add(i);
+          }
+        }
+        errorMessage = null;
+        repaint();
+      } else if (k.enter) {
+        confirmSelection();
       }
-      // Note: space is intentionally NOT handled here. It is the multiselect toggle key;
-      // accepting it as confirm in select trains users into the wrong muscle memory.
+      // For select, space is intentionally ignored — it is the multiselect
+      // toggle key, and accepting it as confirm here trains the wrong muscle
+      // memory.
     };
 
     stdin.on("data", onData);
   });
+}
+
+export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
+  const [index] = await runMenu<T>({
+    message: opts.message,
+    options: opts.options,
+    multi: false,
+    default: opts.default,
+    hint: null,
+  });
+  return opts.options[index!]!.value;
 }
 
 // ── Multi-Select ────────────────────────────────────────────────────────────
@@ -491,104 +631,17 @@ export interface MultiSelectOptions<T = string> {
 }
 
 export async function multiselect<T = string>(opts: MultiSelectOptions<T>): Promise<T[]> {
-  requireTTY();
-  const { message, options, min, max } = opts;
-  if (options.length === 0) throw new Error("multiselect: options must not be empty");
-  const selected = new Set<number>();
-  let cursor = 0;
-  let errorMessage: string | null = null;
-
-  if (opts.default) {
-    for (let i = 0; i < options.length; i++) {
-      if (opts.default.includes(options[i]!.value)) selected.add(i);
-    }
-  }
-
-  const { stdin } = getStdio();
-  const erasedOptions = options as SelectOption<unknown>[];
-
-  return new Promise<T[]>((resolve, reject) => {
-    const restoreMode = enterRawMode(stdin);
-    const painter = createMenuPainter();
-
-    const repaint = () => {
-      painter.paint(
-        renderMenu(
-          message,
-          erasedOptions,
-          cursor,
-          selected,
-          errorMessage,
-          "(space to toggle, a to toggle all, enter to confirm)",
-        ),
-      );
-    };
-
-    repaint();
-
-    const cleanup = () => {
-      stdin.off("data", onData);
-      restoreMode();
-    };
-
-    const onData = (data: Buffer | string) => {
-      const s = typeof data === "string" ? data : data.toString();
-      const k = decodeKey(s);
-
-      if (k.up) {
-        cursor = moveCursor(erasedOptions, cursor, -1);
-        errorMessage = null;
-        repaint();
-      } else if (k.down) {
-        cursor = moveCursor(erasedOptions, cursor, 1);
-        errorMessage = null;
-        repaint();
-      } else if (k.space) {
-        if (!options[cursor]?.disabled) {
-          if (selected.has(cursor)) {
-            selected.delete(cursor);
-          } else if (!max || selected.size < max) {
-            selected.add(cursor);
-          } else {
-            errorMessage = `Maximum ${max} selections allowed`;
-          }
-        }
-        repaint();
-      } else if (k.toggleAll) {
-        const allEnabled = options.filter((o) => !o.disabled);
-        if (selected.size === allEnabled.length) {
-          selected.clear();
-        } else {
-          for (let i = 0; i < options.length; i++) {
-            if (!options[i]?.disabled) selected.add(i);
-          }
-        }
-        errorMessage = null;
-        repaint();
-      } else if (k.enter) {
-        if (min !== undefined && selected.size < min) {
-          errorMessage = `Select at least ${min}`;
-          repaint();
-          return;
-        }
-        if (opts.required && selected.size === 0) {
-          errorMessage = "Select at least 1";
-          repaint();
-          return;
-        }
-        cleanup();
-        const labels = [...selected].map((i) => options[i]!.label).join(", ");
-        painter.replaceWith(formatAnswer(message, labels));
-        resolve([...selected].map((i) => options[i]!.value));
-      } else if (k.ctrlC) {
-        cleanup();
-        write("\n");
-        reject(new PromptError("cancelled"));
-      }
-    };
-
-    stdin.on("data", onData);
+  const indices = await runMenu<T>({
+    message: opts.message,
+    options: opts.options,
+    multi: true,
+    default: opts.default,
+    min: opts.min,
+    max: opts.max,
+    required: opts.required,
+    hint: "(space to toggle, a to toggle all, enter to confirm)",
   });
+  return indices.map((i) => opts.options[i]!.value);
 }
 
 // ── Number Input ────────────────────────────────────────────────────────────
@@ -603,31 +656,113 @@ export interface NumberOptions {
 }
 
 export async function number(opts: NumberOptions): Promise<number> {
-  const result = await text({
-    message: opts.message,
-    default: opts.default !== undefined ? String(opts.default) : undefined,
-    required: opts.required,
-    validate: (val) => {
-      const n = Number(val);
-      if (!Number.isFinite(n)) return "Please enter a valid number";
-      if (opts.min !== undefined && n < opts.min) return `Minimum value is ${opts.min}`;
-      if (opts.max !== undefined && n > opts.max) return `Maximum value is ${opts.max}`;
-      if (opts.step !== undefined && opts.step > 0) {
-        // Anchor the step grid to `min` if provided so e.g. min:1 step:2 accepts 1,3,5…
-        const base = opts.min ?? 0;
-        const offset = n - base;
-        // Tolerate floating-point round-off (0.1 + 0.2 etc).
-        const remainder = offset - Math.round(offset / opts.step) * opts.step;
-        if (Math.abs(remainder) > 1e-9) {
-          return `Value must be a multiple of ${opts.step}${
-            opts.min !== undefined ? ` from ${opts.min}` : ""
-          }`;
+  const { message, min, max, step } = opts;
+  const { stdin } = getStdio();
+  // Anchor the step grid to `min` if provided so e.g. min:1 step:2 accepts 1,3,5…
+  const base = min ?? 0;
+  const stepBy = step !== undefined && step > 0 ? step : 1;
+
+  function validate(n: number): string | true {
+    if (!Number.isFinite(n)) return "Please enter a valid number";
+    if (min !== undefined && n < min) return `Minimum value is ${min}`;
+    if (max !== undefined && n > max) return `Maximum value is ${max}`;
+    if (step !== undefined && step > 0) {
+      const offset = n - base;
+      // Tolerate floating-point round-off (0.1 + 0.2 etc).
+      const remainder = offset - Math.round(offset / step) * step;
+      if (Math.abs(remainder) > 1e-9) {
+        return `Value must be a multiple of ${step}${min !== undefined ? ` from ${min}` : ""}`;
+      }
+    }
+    return true;
+  }
+
+  function clamp(n: number): number {
+    let v = n;
+    if (min !== undefined && v < min) v = min;
+    if (max !== undefined && v > max) v = max;
+    return v;
+  }
+
+  const defaultHint = opts.default !== undefined ? dim(` (${opts.default})`) : "";
+  const stepHint = step !== undefined ? dim(" (↑/↓ to step)") : "";
+  write(`${formatQuestion(message)}${defaultHint}${stepHint}\n`);
+
+  let buffer = opts.default !== undefined ? String(opts.default) : "";
+
+  return new Promise<number>((resolve, reject) => {
+    const restoreMode = enterRawMode(stdin);
+
+    const cleanup = () => {
+      stdin.off("data", onData);
+      stdin.off("line", onLine);
+      restoreMode();
+    };
+
+    const renderInput = () => {
+      clearLine();
+      write(`${cyan(symbols.pointer)} ${buffer}`);
+    };
+
+    const settle = (n: number) => {
+      cleanup();
+      write(`\n${CLEAR_PREV_LINE}${formatAnswer(message, String(n))}`);
+      resolve(n);
+    };
+
+    // Validate `raw`; on success resolve, otherwise show the error and re-prompt.
+    const submit = (raw: string): void => {
+      const result = raw.trim() === "" ? validate(Number.NaN) : validate(Number(raw));
+      if (result !== true) {
+        write(`\n${errorLine(result)}\n`);
+        buffer = "";
+        renderInput();
+        return;
+      }
+      settle(Number(raw));
+    };
+
+    const stepValue = (dir: 1 | -1): void => {
+      const current = buffer.trim() === "" ? base : Number(buffer);
+      const from = Number.isFinite(current) ? current : base;
+      buffer = String(clamp(from + dir * stepBy));
+      renderInput();
+    };
+
+    const onData = (data: Buffer | string) => {
+      const chunk = toChunk(data);
+      if (chunk === KEY.arrowUp) return stepValue(1);
+      if (chunk === KEY.arrowDown) return stepValue(-1);
+      for (const ch of chunk) {
+        if (ch === KEY.cr || ch === KEY.lf) return submit(buffer);
+        if (ch === KEY.ctrlC) {
+          cleanup();
+          write("\n");
+          reject(new PromptError("cancelled"));
+          return;
+        }
+        if (ch === KEY.del || ch === KEY.backspace) {
+          if (buffer.length > 0) {
+            buffer = buffer.slice(0, -1);
+            renderInput();
+          }
+          continue;
+        }
+        // Accept the characters that can form a number literal.
+        if (/[0-9.eE+-]/.test(ch)) {
+          buffer += ch;
+          renderInput();
         }
       }
-      return true;
-    },
+    };
+
+    // Line-oriented fast path (piped input / test stdio).
+    const onLine = (line: string) => submit(line);
+
+    renderInput();
+    stdin.on("data", onData);
+    stdin.on("line", onLine);
   });
-  return Number(result);
 }
 
 // ── Group prompts ───────────────────────────────────────────────────────────

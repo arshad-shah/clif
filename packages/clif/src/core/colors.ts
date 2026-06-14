@@ -49,9 +49,14 @@ type Formatter = (text: string) => string;
 /**
  * Wrap `text` in an SGR open/close pair, rewriting any nested close sequences
  * back to the outer open so styles survive nesting (`bold(red(x))` keeps both).
+ *
+ * The nested-close rewrite only matters when `text` already carries an escape
+ * sequence — the overwhelmingly common case is plain text, so skip the
+ * `replaceAll` (and the throwaway string it allocates) unless an ESC is present.
  */
 function wrap(open: string, close: string, text: string): string {
-  return `\x1b[${open}m${text.replaceAll(`\x1b[${close}m`, `\x1b[${open}m`)}\x1b[${close}m`;
+  const body = text.includes("\x1b") ? text.replaceAll(`\x1b[${close}m`, `\x1b[${open}m`) : text;
+  return `\x1b[${open}m${body}\x1b[${close}m`;
 }
 
 function fmt(open: string, close: string): Formatter {
@@ -253,9 +258,18 @@ export function bgHex(color: string): Formatter {
 
 // ── Compose helper ──────────────────────────────────────────────────────────
 
+/**
+ * Apply formatters right-to-left so the leftmost wraps outermost:
+ * `applyFormatters([bold, red], "x")` ≡ `bold(red("x"))`. Shared by `compose`
+ * and the chainable `style` builder so the fold lives in one place.
+ */
+function applyFormatters(fns: readonly Formatter[], text: string): string {
+  return fns.reduceRight((acc, fn) => fn(acc), text);
+}
+
 /** Compose multiple formatters: `compose(bold, red, underline)("hello")` */
 export function compose(...formatters: Formatter[]): Formatter {
-  return (text: string) => formatters.reduceRight((acc, fn) => fn(acc), text);
+  return (text: string) => applyFormatters(formatters, text);
 }
 
 // ── Gradient ──────────────────────────────────────────────────────────────────
@@ -304,10 +318,14 @@ export function gradient(colors: readonly ColorStop[]): Formatter {
       const frac = pos - idx;
       const a = stops[idx]!;
       const b = stops[idx + 1]!;
-      out += rgb(
+      // Interpolated channels are guaranteed in [0, 255] (stops are validated up
+      // front and interpolation stays between them), so go straight to the
+      // internal formatter and skip the per-character assertByte revalidation.
+      out += rgbFormatter(
         Math.round(a[0] + (b[0] - a[0]) * frac),
         Math.round(a[1] + (b[1] - a[1]) * frac),
         Math.round(a[2] + (b[2] - a[2]) * frac),
+        false,
       )(chars[i]!);
     }
     return out;
@@ -315,6 +333,10 @@ export function gradient(colors: readonly ColorStop[]): Formatter {
 }
 
 // ── Hyperlinks ────────────────────────────────────────────────────────────────
+
+/** Operating System Command 8 introducer and BEL terminator for hyperlinks. */
+const OSC8 = "\x1b]8;;";
+const BEL = "\x07";
 
 /**
  * Render a clickable terminal hyperlink (OSC 8). Without color/link support it
@@ -327,7 +349,8 @@ export function gradient(colors: readonly ColorStop[]): Formatter {
  */
 export function link(text: string, url: string): string {
   if (_level === 0) return text === url ? text : `${text} (${url})`;
-  return `\x1b]8;;${url}\x07${text}\x1b]8;;\x07`;
+  // OSC 8 hyperlink: `ESC ] 8 ;; <url> BEL <text> ESC ] 8 ;; BEL`.
+  return `${OSC8}${url}${BEL}${text}${OSC8}${BEL}`;
 }
 
 // ── Chainable style API ─────────────────────────────────────────────────────
@@ -455,7 +478,7 @@ const STYLE_METHODS: Record<string, ColorMethod> = {
 };
 
 function makeStyle(fns: readonly Formatter[]): Style {
-  const apply = ((text: string) => fns.reduceRight((acc, fn) => fn(acc), text)) as Style;
+  const apply = ((text: string) => applyFormatters(fns, text)) as Style;
   return new Proxy(apply, {
     get(target, prop, receiver) {
       if (typeof prop === "string") {

@@ -94,6 +94,47 @@ describe("box", () => {
   });
 });
 
+// ── Box — vertical padding ──────────────────────────────────────────────────
+
+describe("box vertical padding", () => {
+  it("uses a single blank line top and bottom for the default padding", () => {
+    // top border + 1 blank + content + 1 blank + bottom border = 5
+    const lines = stripAnsi(box("hi")).split("\n").filter(Boolean);
+    expect(lines.length).toBe(5);
+  });
+
+  it("scales vertical padding with the padding option", () => {
+    // top border + 2 blank + content + 2 blank + bottom border = 7
+    const lines = stripAnsi(box("hi", { padding: 2 }))
+      .split("\n")
+      .filter(Boolean);
+    expect(lines.length).toBe(7);
+  });
+
+  it("adds no blank lines when padding is 0", () => {
+    // top border + content + bottom border = 3
+    const lines = stripAnsi(box("hi", { padding: 0 }))
+      .split("\n")
+      .filter(Boolean);
+    expect(lines.length).toBe(3);
+  });
+
+  it("scales horizontal padding with the padding option", () => {
+    const lines = stripAnsi(box("hi", { padding: 3, border: "single" })).split("\n");
+    const contentLine = lines.find((l) => l.includes("hi"))!;
+    // 3 spaces of left padding sit between the border and the content.
+    expect(contentLine).toContain("│   hi");
+  });
+
+  it("clamps a negative padding to zero instead of throwing", () => {
+    expect(() => box("hi", { padding: -2 })).not.toThrow();
+    const lines = stripAnsi(box("hi", { padding: -2 }))
+      .split("\n")
+      .filter(Boolean);
+    expect(lines.length).toBe(3);
+  });
+});
+
 // ── Table ───────────────────────────────────────────────────────────────────
 
 describe("table", () => {
@@ -192,6 +233,120 @@ describe("table", () => {
     expect(lines[0]!.endsWith("┐")).toBe(true);
     expect(lines[lines.length - 1]!.startsWith("└")).toBe(true);
     expect(lines[lines.length - 1]!.endsWith("┘")).toBe(true);
+  });
+});
+
+// ── Table — column alignment ────────────────────────────────────────────────
+
+describe("table alignment", () => {
+  // Exact-line assertions (border off) so each test truly distinguishes
+  // left / right / center rather than matching an incidental substring.
+  it("left-aligns by default (cells padded on the right)", () => {
+    const lines = stripAnsi(
+      table(
+        [
+          ["a", "5"],
+          ["bb", "100"],
+        ],
+        { border: false },
+      ),
+    ).split("\n");
+    expect(lines[0]).toBe("  a   5    ");
+    expect(lines[1]).toBe("  bb  100  ");
+  });
+
+  it("right-aligns a column when align is 'right'", () => {
+    const lines = stripAnsi(
+      table(
+        [
+          ["a", "5"],
+          ["bb", "100"],
+        ],
+        { align: ["left", "right"], border: false },
+      ),
+    ).split("\n");
+    expect(lines[0]).toBe("  a     5  ");
+    expect(lines[1]).toBe("  bb  100  ");
+  });
+
+  it("center-aligns a column when align is 'center'", () => {
+    const lines = stripAnsi(
+      table(
+        [
+          ["aaaaa", "x"],
+          ["b", "y"],
+        ],
+        { align: "center", border: false },
+      ),
+    ).split("\n");
+    expect(lines[0]).toBe("  aaaaa  x  ");
+    expect(lines[1]).toBe("    b    y  ");
+  });
+
+  it("applies a single align value to every column", () => {
+    const lines = stripAnsi(
+      table(
+        [
+          ["aa", "5"],
+          ["b", "100"],
+        ],
+        { align: "right", border: false },
+      ),
+    ).split("\n");
+    expect(lines[0]).toBe("  aa    5  ");
+    expect(lines[1]).toBe("   b  100  ");
+  });
+
+  it("aligns header cells with their column", () => {
+    const lines = stripAnsi(
+      table([["1000"]], { headers: ["n"], align: "right", border: false }),
+    ).split("\n");
+    expect(lines[0]).toBe("     n  ");
+    expect(lines[1]).toBe("  1000  ");
+  });
+
+  it("falls back to left for columns not covered by the align array", () => {
+    const lines = stripAnsi(
+      table(
+        [
+          ["a", "5"],
+          ["bb", "100"],
+        ],
+        { align: ["right"], border: false },
+      ),
+    ).split("\n");
+    expect(lines[0]).toBe("   a  5    ");
+    expect(lines[1]).toBe("  bb  100  ");
+  });
+});
+
+// ── Table — cell wrapping ───────────────────────────────────────────────────
+
+describe("table wrap", () => {
+  it("wraps long cells to multiple lines instead of truncating", () => {
+    const out = stripAnsi(
+      table([["hello world foo", "x"]], { maxColumnWidth: 7, wrap: true, border: false }),
+    );
+    const lines = out.split("\n");
+    expect(lines.length).toBeGreaterThan(1);
+    expect(out).toContain("hello");
+    expect(out).toContain("world");
+    expect(out).toContain("foo");
+    expect(out).not.toContain("…");
+  });
+
+  it("aligns wrapped cells alongside taller neighbours", () => {
+    const out = stripAnsi(
+      table([["a b c", "tall"]], { maxColumnWidth: 1, wrap: true, border: true }),
+    );
+    // col0 "a b c" wraps to 3 rows; col1 "tall" occupies the first, blanks after.
+    const body = out.split("\n").filter((l) => l.includes("│"));
+    expect(body.length).toBe(3);
+  });
+
+  it("still truncates when wrap is false (default)", () => {
+    const out = stripAnsi(table([["hello world foo"]], { maxColumnWidth: 7 }));
+    expect(out).toContain("…");
   });
 });
 
@@ -450,6 +605,45 @@ describe("createSpinner", () => {
     s.update("new text");
     // Should return this for chaining
     expect(s.update("newer")).toBe(s);
+  });
+
+  it("frames the label with prefixText and suffixText", () => {
+    const chunks: string[] = [];
+    const stream = {
+      write: (s: string) => {
+        chunks.push(s);
+        return true;
+      },
+      isTTY: true,
+    } as unknown as NodeJS.WritableStream;
+    const s = createSpinner({
+      stream,
+      text: "load",
+      prefixText: "[1/3] ",
+      suffixText: " — please wait",
+    });
+    s.start();
+    const out = chunks.join("");
+    expect(out).toContain("[1/3] ");
+    expect(out).toContain(" — please wait");
+    s.stop();
+  });
+
+  it("keeps prefix/suffix on a final state line", () => {
+    const chunks: string[] = [];
+    const stream = {
+      write: (s: string) => {
+        chunks.push(s);
+        return true;
+      },
+    } as unknown as NodeJS.WritableStream;
+    const s = createSpinner({ stream, prefixText: "» ", suffixText: " «" });
+    s.start("work");
+    s.succeed("done");
+    const out = chunks.join("");
+    expect(out).toContain("» ");
+    expect(out).toContain("done");
+    expect(out).toContain(" «");
   });
 });
 

@@ -39,6 +39,19 @@ table([["A very long cell value that should be truncated", "short"]], {
 });
 ```
 
+## Wrapping instead of truncating
+
+By default a cell wider than `maxColumnWidth` is truncated with an ellipsis.
+Set `wrap: true` to wrap it onto multiple lines instead — the row grows as tall
+as its tallest cell, and neighbouring cells stay aligned.
+
+```typescript
+table([["The quick brown fox jumps", "ok"]], {
+  maxColumnWidth: 10,
+  wrap: true,
+});
+```
+
 ## Custom header color
 
 ```typescript
@@ -46,12 +59,34 @@ import { table, cyan } from "@arshad-shah/clif";
 table([["data"]], { headers: ["Column"], headerColor: cyan });
 ```
 
+## Column alignment
+
+Pass a single value to align every column the same way, or an array to align
+each column independently. Columns past the end of the array fall back to
+`"left"`, and headers align with their column.
+
+```typescript
+// Right-align a numeric column
+table(
+  [
+    ["clif", "11"],
+    ["commander", "26000"],
+  ],
+  { headers: ["Package", "Stars"], align: ["left", "right"] },
+);
+
+// Center every column
+table([["a", "b", "c"]], { align: "center" });
+```
+
 ## Options
 
-| Option           | Type        | Default | Description                                        |
-| ---------------- | ----------- | ------- | -------------------------------------------------- |
-| `headers`        | `string[]`  | —       | Column headers                                     |
-| `border`         | `boolean`   | `true`  | Show borders                                       |
-| `headerColor`    | `Formatter` | `bold`  | Header text style                                  |
-| `compact`        | `boolean`   | `false` | Suppress the separator row between header and body |
-| `maxColumnWidth` | `number`    | —       | Truncate columns                                   |
+| Option           | Type               | Default  | Description                                                                |
+| ---------------- | ------------------ | -------- | -------------------------------------------------------------------------- |
+| `headers`        | `string[]`         | —        | Column headers                                                             |
+| `border`         | `boolean`          | `true`   | Show borders                                                               |
+| `headerColor`    | `Formatter`        | `bold`   | Header text style                                                          |
+| `compact`        | `boolean`          | `false`  | Suppress the separator row between header and body                         |
+| `maxColumnWidth` | `number`           | —        | Truncate columns                                                           |
+| `align`          | `Align \| Align[]` | `"left"` | Per-column alignment (`"left" \| "center" \| "right"`); single or array    |
+| `wrap`           | `boolean`          | `false`  | Wrap cells past `maxColumnWidth` onto multiple lines instead of truncating |

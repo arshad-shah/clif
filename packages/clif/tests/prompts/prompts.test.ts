@@ -128,6 +128,33 @@ describe("confirm", () => {
     expect(await p).toBe(true);
     __testing.resetStdio();
   });
+
+  it("accepts a single keypress without requiring Enter", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = confirm({ message: "go?" });
+    pushKey("y");
+    expect(await p).toBe(true);
+    __testing.resetStdio();
+  });
+
+  it("returns false on a single 'n' keypress", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = confirm({ message: "go?", default: true });
+    pushKey("n");
+    expect(await p).toBe(false);
+    __testing.resetStdio();
+  });
+
+  it("returns the default when Enter is pressed with no choice", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = confirm({ message: "go?", default: true });
+    pushKey("\r");
+    expect(await p).toBe(true);
+    __testing.resetStdio();
+  });
 });
 
 describe("select", () => {
@@ -159,6 +186,58 @@ describe("select", () => {
     await expect(p).rejects.toBeInstanceOf(PromptError);
     __testing.resetStdio();
   });
+
+  it("resolves the focused option on Enter and honors the default", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = select({
+      message: "pick",
+      options: [
+        { label: "a", value: "a" },
+        { label: "b", value: "b" },
+        { label: "c", value: "c" },
+      ],
+      default: "b",
+    });
+    pushKey("\r"); // confirm the default (b)
+    expect(await p).toBe("b");
+    __testing.resetStdio();
+  });
+
+  it("skips disabled options when moving the cursor", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = select({
+      message: "pick",
+      options: [
+        { label: "a", value: "a" },
+        { label: "b", value: "b", disabled: true },
+        { label: "c", value: "c" },
+      ],
+    });
+    pushKey("\x1b[B"); // down from a, skipping disabled b → c
+    pushKey("\r");
+    expect(await p).toBe("c");
+    __testing.resetStdio();
+  });
+});
+
+describe("multiselect toggle-all", () => {
+  it("selects every enabled option with 'a', then confirms", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = multiselect({
+      message: "pick",
+      options: [
+        { label: "a", value: "a" },
+        { label: "b", value: "b" },
+      ],
+    });
+    pushKey("a"); // toggle all on
+    pushKey("\r");
+    expect(await p).toEqual(["a", "b"]);
+    __testing.resetStdio();
+  });
 });
 
 describe("number step", () => {
@@ -183,6 +262,37 @@ describe("number step", () => {
     const p = number({ message: "n", min: 0, max: 100 });
     pushLine("7");
     expect(await p).toBe(7);
+    __testing.resetStdio();
+  });
+
+  it("steps the value up by `step` on the up arrow", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = number({ message: "n", default: 10, step: 5, max: 100 });
+    pushKey("\x1b[A"); // up → 15
+    pushKey("\r"); // submit
+    expect(await p).toBe(15);
+    __testing.resetStdio();
+  });
+
+  it("steps down and clamps to min", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = number({ message: "n", default: 2, step: 5, min: 0 });
+    pushKey("\x1b[B"); // down → -3, clamped to 0
+    pushKey("\r");
+    expect(await p).toBe(0);
+    __testing.resetStdio();
+  });
+
+  it("accepts typed digits then Enter", async () => {
+    const { stdio, pushKey } = fakeStdio({ isTTY: true });
+    __testing.setStdio(stdio);
+    const p = number({ message: "n" });
+    pushKey("4");
+    pushKey("2");
+    pushKey("\r");
+    expect(await p).toBe(42);
     __testing.resetStdio();
   });
 });

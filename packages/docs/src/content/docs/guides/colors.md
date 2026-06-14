@@ -50,7 +50,7 @@ console.log(style.bgBlue.white(" status "));
 // Extended colors are methods on the chain
 console.log(style.hex("#f5c76a").bold("title"));
 console.log(style.rgb(255, 136, 0)("custom orange"));
-console.log(style.ansi256(208)("palette orange"));
+console.log(style.ansi256(208)("palette orange")); // alias of style.rgb256(208)
 
 // Capture a builder and branch off it — the original is never mutated
 const heading = style.bold.cyan;
@@ -110,7 +110,14 @@ console.log(gradient(["#ff0080", "#7928ca"])("hello world"));
 console.log(gradient(["#f00", "#0f0", "#00f"])("rainbow"));
 
 // Accepts [r, g, b] tuples too, and composes with other formatters
-console.log(bold(gradient([[255, 136, 0], [255, 0, 128]])("fire")));
+console.log(
+  bold(
+    gradient([
+      [255, 136, 0],
+      [255, 0, 128],
+    ])("fire"),
+  ),
+);
 ```
 
 ## Hyperlinks

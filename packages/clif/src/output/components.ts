@@ -9,32 +9,35 @@
 
 import { CLEAR_LINE, CURSOR_HIDE, CURSOR_SHOW } from "../core/ansi.js";
 import { type Formatter, bold, cyan, dim, green, visibleLength } from "../core/colors.js";
-import { boxChars, statusIcon, symbols } from "../core/symbols.js";
-import { truncate } from "../utils/helpers.js";
+import { boxChars, boxStyles, statusIcon, symbols, treeChars } from "../core/symbols.js";
+import { truncate, wordWrap } from "../utils/helpers.js";
 
 // ── Box ─────────────────────────────────────────────────────────────────────
 
 export type BoxBorder = "single" | "double" | "round" | "bold" | "none";
 
-const { topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical } = boxChars;
+/** Horizontal alignment shared by `box` content and `table` cells. */
+export type Align = "left" | "center" | "right";
 
-const BORDERS: Record<
-  BoxBorder,
-  { tl: string; tr: string; bl: string; br: string; h: string; v: string }
-> = {
-  single: {
-    tl: topLeft,
-    tr: topRight,
-    bl: bottomLeft,
-    br: bottomRight,
-    h: horizontal,
-    v: vertical,
-  },
-  double: { tl: "╔", tr: "╗", bl: "╚", br: "╝", h: "═", v: "║" },
-  round: { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│" },
-  bold: { tl: "┏", tr: "┓", bl: "┗", br: "┛", h: "━", v: "┃" },
-  none: { tl: " ", tr: " ", bl: " ", br: " ", h: " ", v: " " },
-};
+/**
+ * Pad `text` to `width` columns under the given alignment. `vis` is the text's
+ * pre-computed visible width (ANSI-excluded), so callers that already know it
+ * don't pay for a second strip. A `width` smaller than `vis` yields no padding.
+ */
+function padTo(text: string, vis: number, width: number, align: Align): string {
+  const space = Math.max(0, width - vis);
+  if (space === 0) return text;
+  if (align === "right") return " ".repeat(space) + text;
+  if (align === "center") {
+    const left = Math.floor(space / 2);
+    return " ".repeat(left) + text + " ".repeat(space - left);
+  }
+  return text + " ".repeat(space);
+}
+
+// Border glyph sets are centralised in symbols.ts (`boxStyles`) so no raw
+// box-drawing characters are inlined here.
+const BORDERS: Record<BoxBorder, (typeof boxStyles)[BoxBorder]> = boxStyles;
 
 export interface BoxOptions {
   title?: string;
@@ -42,7 +45,7 @@ export interface BoxOptions {
   padding?: number;
   margin?: number;
   width?: number;
-  align?: "left" | "center" | "right";
+  align?: Align;
   borderColor?: Formatter;
   titleColor?: Formatter;
   dimBorder?: boolean;
@@ -51,19 +54,27 @@ export interface BoxOptions {
 export function box(content: string, opts: BoxOptions = {}): string {
   const {
     border = "round",
-    padding = 1,
+    padding: rawPadding = 1,
     margin = 0,
     align = "left",
     borderColor = (s: string) => s,
     titleColor = bold,
     dimBorder = false,
   } = opts;
+  // Normalise to a non-negative integer so it can drive both the horizontal
+  // space count and the vertical blank-line count without throwing on
+  // fractional or negative input.
+  const padding = Math.max(0, Math.trunc(rawPadding));
 
   const b = BORDERS[border];
   const applyBorder = dimBorder ? (s: string) => dim(borderColor(s)) : borderColor;
 
   const lines = content.split("\n");
-  const maxContent = Math.max(...lines.map(visibleLength));
+  // Strip ANSI once per line up front — both the max-width pass and the
+  // per-line alignment pass below need the visible width, and visibleLength
+  // walks the whole string each time.
+  const lineWidths = lines.map(visibleLength);
+  const maxContent = lineWidths.length ? Math.max(...lineWidths) : 0;
 
   // Title in top border
   const titleStr = opts.title ? ` ${titleColor(opts.title)} ` : "";
@@ -86,29 +97,19 @@ export function box(content: string, opts: BoxOptions = {}): string {
 
   const paddedLines: string[] = [];
 
-  // Top padding
-  for (let i = 0; i < (padding > 0 ? 1 : 0); i++) paddedLines.push(emptyLine);
+  // Top padding — one blank line per unit of padding.
+  for (let i = 0; i < padding; i++) paddedLines.push(emptyLine);
 
-  for (const line of lines) {
-    const stripped = visibleLength(line);
-    const space = innerWidth - padding * 2 - stripped;
-    let aligned: string;
-    if (align === "center") {
-      const left = Math.floor(space / 2);
-      const right = space - left;
-      aligned = " ".repeat(left) + line + " ".repeat(right);
-    } else if (align === "right") {
-      aligned = " ".repeat(space) + line;
-    } else {
-      aligned = line + " ".repeat(Math.max(0, space));
-    }
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li]!;
+    const aligned = padTo(line, lineWidths[li]!, innerWidth - padding * 2, align);
     paddedLines.push(
       `${marginStr}${applyBorder(b.v)}${padStr}${aligned}${padStr}${applyBorder(b.v)}`,
     );
   }
 
-  // Bottom padding
-  for (let i = 0; i < (padding > 0 ? 1 : 0); i++) paddedLines.push(emptyLine);
+  // Bottom padding — symmetric with the top.
+  for (let i = 0; i < padding; i++) paddedLines.push(emptyLine);
 
   const topMargin = "\n".repeat(margin > 0 ? 1 : 0);
   const bottomMargin = "\n".repeat(margin > 0 ? 1 : 0);
@@ -125,15 +126,37 @@ export interface TableOptions {
   /** Suppress the separator row between header and body for a denser layout. */
   compact?: boolean;
   maxColumnWidth?: number;
+  /**
+   * Per-column horizontal alignment. A single value applies to every column;
+   * an array aligns each column independently (columns past the array's end
+   * fall back to `"left"`). Headers align with their column.
+   */
+  align?: Align | Align[];
+  /**
+   * Wrap cells wider than `maxColumnWidth` onto multiple lines instead of
+   * truncating them. No effect without `maxColumnWidth`.
+   */
+  wrap?: boolean;
 }
 
 export function table(rows: string[][], opts: TableOptions = {}): string {
-  const { headers, border = true, headerColor = bold, compact = false, maxColumnWidth } = opts;
+  const {
+    headers,
+    border = true,
+    headerColor = bold,
+    compact = false,
+    maxColumnWidth,
+    align = "left",
+    wrap = false,
+  } = opts;
   const allRows = headers ? [headers, ...rows] : rows;
 
   if (allRows.length === 0) return "";
 
   const colCount = Math.max(...allRows.map((r) => r.length));
+  const alignments: Align[] = Array.from({ length: colCount }, (_, c) =>
+    Array.isArray(align) ? (align[c] ?? "left") : align,
+  );
 
   // Calculate column widths
   const widths: number[] = [];
@@ -163,19 +186,33 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
   for (let r = 0; r < allRows.length; r++) {
     const row = allRows[r]!;
     const isHeader = headers && r === 0;
-    const cells = widths.map((w, c) => {
+
+    // Resolve each cell to one or more physical lines: wrapped (when `wrap`
+    // and the cell overflows its column), truncated (when capped without
+    // wrap), or a single verbatim line.
+    const colLines = widths.map((w, c) => {
       const raw = row[c] ?? "";
+      if (wrap && maxColumnWidth && visibleLength(raw) > w) {
+        return wordWrap(raw, w).split("\n");
+      }
       const trimmed =
         maxColumnWidth && visibleLength(raw) > maxColumnWidth ? truncate(raw, maxColumnWidth) : raw;
-      const padded = trimmed + " ".repeat(Math.max(0, w - visibleLength(trimmed)));
-      return isHeader ? headerColor(padded) : padded;
+      return [trimmed];
     });
+    const height = Math.max(1, ...colLines.map((l) => l.length));
 
-    if (border) {
-      const v = boxChars.vertical;
-      lines.push(`${v} ${cells.join(` ${v} `)} ${v}`);
-    } else {
-      lines.push(`  ${cells.join("  ")}  `);
+    for (let li = 0; li < height; li++) {
+      const cells = widths.map((w, c) => {
+        const text = colLines[c]![li] ?? "";
+        const padded = padTo(text, visibleLength(text), w, alignments[c]!);
+        return isHeader ? headerColor(padded) : padded;
+      });
+      if (border) {
+        const v = boxChars.vertical;
+        lines.push(`${v} ${cells.join(` ${v} `)} ${v}`);
+      } else {
+        lines.push(`  ${cells.join("  ")}  `);
+      }
     }
 
     if (isHeader && !compact && border) lines.push(midSep);
@@ -248,8 +285,8 @@ function renderTree(root: TreeNode, prefix: string): string {
     for (let i = 0; i < root.children.length; i++) {
       const child = root.children[i]!;
       const isLast = i === root.children.length - 1;
-      const connector = isLast ? "└── " : "├── ";
-      const childPrefix = isLast ? "    " : "│   ";
+      const connector = isLast ? treeChars.lastBranch : treeChars.branch;
+      const childPrefix = isLast ? treeChars.indent : treeChars.vertical;
 
       // Recurse with the column owned by this child's subtree as the prefix.
       // The recursion bakes that prefix into every line below the child's
@@ -276,6 +313,10 @@ export interface SpinnerOptions {
   interval?: number;
   color?: Formatter;
   stream?: NodeJS.WritableStream;
+  /** Text printed before the frame/icon on every line (e.g. a step counter). */
+  prefixText?: string;
+  /** Text printed after the label on every line. */
+  suffixText?: string;
 }
 
 const DEFAULT_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -287,7 +328,14 @@ function isStreamTTY(stream: NodeJS.WritableStream): boolean {
 }
 
 export function createSpinner(opts: SpinnerOptions = {}) {
-  const { frames = DEFAULT_FRAMES, interval = 80, color = cyan, stream = process.stderr } = opts;
+  const {
+    frames = DEFAULT_FRAMES,
+    interval = 80,
+    color = cyan,
+    stream = process.stderr,
+    prefixText = "",
+    suffixText = "",
+  } = opts;
   const tty = isStreamTTY(stream);
 
   let text = opts.text ?? "";
@@ -296,9 +344,14 @@ export function createSpinner(opts: SpinnerOptions = {}) {
   let isSpinning = false;
   let sigintHandler: (() => void) | null = null;
 
+  /** Frame a body (frame/icon + label) with the fixed prefix/suffix. */
+  function line(body: string): string {
+    return `${prefixText}${body}${suffixText}`;
+  }
+
   function render() {
     const frame = color(frames[frameIdx % frames.length]!);
-    stream.write(`${CLEAR_LINE}${frame} ${text}`);
+    stream.write(`${CLEAR_LINE}${line(`${frame} ${text}`)}`);
     frameIdx++;
   }
 
@@ -337,7 +390,7 @@ export function createSpinner(opts: SpinnerOptions = {}) {
         process.once("SIGINT", sigintHandler);
       } else {
         // Non-TTY: single static line so logs stay readable.
-        stream.write(`${color(frames[0]!)} ${text}\n`);
+        stream.write(`${line(`${color(frames[0]!)} ${text}`)}\n`);
       }
       return api;
     },
@@ -347,16 +400,16 @@ export function createSpinner(opts: SpinnerOptions = {}) {
       return api;
     },
     succeed(msg?: string) {
-      return api.stop(`${statusIcon("success")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("success")} ${msg ?? text}`));
     },
     fail(msg?: string) {
-      return api.stop(`${statusIcon("error")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("error")} ${msg ?? text}`));
     },
     warn(msg?: string) {
-      return api.stop(`${statusIcon("warning")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("warning")} ${msg ?? text}`));
     },
     info(msg?: string) {
-      return api.stop(`${statusIcon("info")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("info")} ${msg ?? text}`));
     },
     update(msg: string) {
       text = msg;

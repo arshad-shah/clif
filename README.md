@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./packages/docs/src/assets/wordmark.svg" alt="clif" width="240">
+</p>
+
 # clif
 
 [![CI](https://github.com/arshad-shah/clif/actions/workflows/ci.yml/badge.svg)](https://github.com/arshad-shah/clif/actions/workflows/ci.yml)

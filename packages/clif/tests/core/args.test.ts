@@ -488,3 +488,57 @@ describe("parseArgs", () => {
     });
   });
 });
+
+describe("positional schema", () => {
+  it("maps named positionals into values while keeping the raw array", () => {
+    const r = parseArgs(
+      {},
+      { args: ["build", "src"], positionals: [{ name: "command" }, { name: "dir" }] },
+    );
+    expect(r.values.command).toBe("build");
+    expect(r.values.dir).toBe("src");
+    expect(r.positional).toEqual(["build", "src"]);
+  });
+
+  it("coerces number positionals", () => {
+    const r = parseArgs({}, { args: ["42"], positionals: [{ name: "port", type: "number" }] });
+    expect(r.values.port).toBe(42);
+  });
+
+  it("throws on a missing required positional", () => {
+    expect(() =>
+      parseArgs({}, { args: [], positionals: [{ name: "file", required: true }] }),
+    ).toThrow(/Missing required argument/i);
+  });
+
+  it("does not throw when an optional positional is absent", () => {
+    const r = parseArgs({}, { args: [], positionals: [{ name: "file" }] });
+    expect(r.values.file).toBeUndefined();
+  });
+
+  it("collects a variadic positional into an array", () => {
+    const r = parseArgs(
+      {},
+      { args: ["a", "b", "c"], positionals: [{ name: "first" }, { name: "rest", variadic: true }] },
+    );
+    expect(r.values.first).toBe("a");
+    expect(r.values.rest).toEqual(["b", "c"]);
+  });
+
+  it("validates positional choices", () => {
+    expect(() =>
+      parseArgs({}, { args: ["x"], positionals: [{ name: "mode", choices: ["dev", "prod"] }] }),
+    ).toThrow(/Invalid value/i);
+  });
+
+  it("rejects a non-numeric value for a number positional", () => {
+    expect(() =>
+      parseArgs({}, { args: ["abc"], positionals: [{ name: "n", type: "number" }] }),
+    ).toThrow(/number/i);
+  });
+
+  it("leaves values empty when no schema is given", () => {
+    const r = parseArgs({}, { args: ["x"] });
+    expect(r.values).toEqual({});
+  });
+});
