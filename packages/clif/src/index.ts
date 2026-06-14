@@ -24,6 +24,8 @@ export type {
   ArgDef,
   ParsedArgs,
   ParseOptions,
+  PositionalDef,
+  PositionalValue,
   FlagValueOf,
   FlagsFromDefs,
 } from "./core/args.js";

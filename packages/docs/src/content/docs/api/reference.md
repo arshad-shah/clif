@@ -37,8 +37,10 @@ Truecolor and 256-color formatters automatically **downgrade** to the nearest re
 
 ### Argument parsing
 
-`parseArgs(defs, opts?)` → `ParsedArgs { flags, positional, rest, unknown }`
+`parseArgs(defs, opts?)` → `ParsedArgs { flags, positional, rest, unknown, values }`
 `ArgError` — thrown on validation failures (exposes `.flag` for the offending name)
+
+Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validated positional values on `result.values`. Each definition supports `type`, `required`, `choices`, `variadic`, and `description`.
 
 ### Command system
 
@@ -69,7 +71,7 @@ Truecolor and 256-color formatters automatically **downgrade** to the nearest re
 `Formatter`, `Style`, `ColorStop`, `Align`,
 `BoxBorder`, `BoxOptions`, `TableOptions`, `KeyValueOptions`, `ListOptions`,
 `TreeNode`, `SpinnerOptions`, `ProgressOptions`,
-`ArgDef`, `ParsedArgs`, `ParseOptions`, `FlagValueOf`, `FlagsFromDefs`,
+`ArgDef`, `ParsedArgs`, `ParseOptions`, `PositionalDef`, `PositionalValue`, `FlagValueOf`, `FlagsFromDefs`,
 `CommandDef`, `CommandContext`, `RunOptions`,
 `TextOptions`, `PasswordOptions`, `ConfirmOptions`, `SelectOption`, `SelectOptions`, `MultiSelectOptions`, `NumberOptions`,
 `PromptErrorCode`

@@ -119,6 +119,37 @@ mycli build src/index.ts --minify
 
 Pass `{ stopEarly: true }` to treat the first non-flag token as a hard stop — useful when delegating to a subprocess that has its own flag parser.
 
+### Named positional schema
+
+Describe your positionals with a `positionals` schema to get **named**, **typed**,
+validated values on `result.values` (the raw `result.positional` array is still
+there too):
+
+```typescript
+const r = parseArgs(
+  {},
+  {
+    args: ["build", "src", "dist"],
+    positionals: [
+      { name: "command", choices: ["build", "test"] },
+      { name: "input", required: true },
+      { name: "outputs", variadic: true }, // collects the rest into an array
+    ],
+  },
+);
+
+r.values.command; // "build"
+r.values.input; // "src"
+r.values.outputs; // ["dist"]
+```
+
+Each `PositionalDef` supports `type` (`"string"` | `"number"`), `required`,
+`choices`, `variadic` (collect this and all remaining tokens into an array), and
+`description` (shown in `createCLI` help). A missing required positional throws
+`ArgError`. On a command, declare `positionals` directly on the `CommandDef` and
+read them from `ctx.args.values` — they also appear in the generated `--help`
+usage line and an `Arguments:` section.
+
 ## The `--` separator
 
 Arguments after `--` are collected in `result.rest` and are not parsed:

@@ -24,13 +24,15 @@ spinner.info("Build skipped — no changes");
 
 ### Spinner options
 
-| Option     | Type             | Default      | Description         |
-| ---------- | ---------------- | ------------ | ------------------- |
-| `text`     | `string`         | `""`         | Spinner label       |
-| `frames`   | `string[]`       | braille dots | Animation frames    |
-| `interval` | `number`         | `80`         | Frame interval (ms) |
-| `color`    | `Formatter`      | `cyan`       | Frame color         |
-| `stream`   | `WritableStream` | `stderr`     | Output stream       |
+| Option       | Type             | Default      | Description                                                            |
+| ------------ | ---------------- | ------------ | ---------------------------------------------------------------------- |
+| `text`       | `string`         | `""`         | Spinner label                                                          |
+| `frames`     | `string[]`       | braille dots | Animation frames                                                       |
+| `interval`   | `number`         | `80`         | Frame interval (ms)                                                    |
+| `color`      | `Formatter`      | `cyan`       | Frame color                                                            |
+| `stream`     | `WritableStream` | `stderr`     | Output stream                                                          |
+| `prefixText` | `string`         | `""`         | Text printed before the frame/icon on every line (e.g. a step counter) |
+| `suffixText` | `string`         | `""`         | Text printed after the label on every line                             |
 
 ## Progress bar
 

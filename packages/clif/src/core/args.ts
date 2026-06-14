@@ -27,6 +27,21 @@ export interface ArgDef {
 
 type FlagValue = string | number | boolean | readonly (string | number)[];
 
+/** Schema for a single positional argument (see {@link ParseOptions.positionals}). */
+export interface PositionalDef {
+  /** Name used as the key in {@link ParsedArgs.values} and in help output. */
+  name: string;
+  description?: string;
+  required?: boolean;
+  /** Collect this and every remaining positional into an array. Use last. */
+  variadic?: boolean;
+  type?: "string" | "number";
+  choices?: readonly (string | number)[];
+}
+
+/** A resolved positional value: a scalar, or an array for a variadic slot. */
+export type PositionalValue = string | number | (string | number)[];
+
 /**
  * Map a single ArgDef → its parsed value type.
  *  - `multiple: true` produces an array of the base type.
@@ -52,6 +67,11 @@ export interface ParsedArgs<T extends Record<string, ArgDef> = Record<string, Ar
   positional: string[];
   rest: string[]; // everything after "--"
   unknown: string[];
+  /**
+   * Named positional values, populated when `positionals` is supplied. Keyed by
+   * each definition's `name`; absent optional positionals are simply missing.
+   */
+  values: Record<string, PositionalValue>;
 }
 
 export interface ParseOptions {
@@ -60,6 +80,8 @@ export interface ParseOptions {
   stopEarly?: boolean;
   /** Place unknown flags into `flags` (with value `true` for booleans, raw string otherwise) instead of `unknown`. */
   allowUnknown?: boolean;
+  /** Schema for named/typed positional arguments, surfaced on `values`. */
+  positionals?: PositionalDef[];
 }
 
 export class ArgError extends Error {
@@ -77,6 +99,56 @@ const HAS_OWN = Object.prototype.hasOwnProperty;
 
 function isPrototypePollutionKey(name: string): boolean {
   return name === "__proto__" || name === "constructor" || name === "prototype";
+}
+
+/** Coerce + validate a single positional token against its definition. */
+function coercePositional(def: PositionalDef, value: string): string | number {
+  if (def.type === "number") {
+    const n = Number(value);
+    if (value === "" || !Number.isFinite(n)) {
+      throw new ArgError(`Expected number for <${def.name}>, got "${value}"`, def.name);
+    }
+    if (def.choices && !def.choices.includes(n)) {
+      throw new ArgError(
+        `Invalid value "${value}" for <${def.name}>. Choices: ${def.choices.join(", ")}`,
+        def.name,
+      );
+    }
+    return n;
+  }
+  if (def.choices && !def.choices.includes(value)) {
+    throw new ArgError(
+      `Invalid value "${value}" for <${def.name}>. Choices: ${def.choices.join(", ")}`,
+      def.name,
+    );
+  }
+  return value;
+}
+
+/** Resolve the raw positional tokens against a positional schema. */
+function resolvePositionals(
+  positional: string[],
+  defs: PositionalDef[],
+): Record<string, PositionalValue> {
+  const values: Record<string, PositionalValue> = {};
+  let i = 0;
+  for (const def of defs) {
+    if (def.variadic) {
+      values[def.name] = positional.slice(i).map((v) => coercePositional(def, v));
+      i = positional.length;
+    } else {
+      const raw = positional[i];
+      if (raw === undefined) {
+        if (def.required) {
+          throw new ArgError(`Missing required argument: <${def.name}>`, def.name);
+        }
+      } else {
+        values[def.name] = coercePositional(def, raw);
+        i++;
+      }
+    }
+  }
+  return values;
 }
 
 export function parseArgs<T extends Record<string, ArgDef>>(
@@ -358,5 +430,7 @@ export function parseArgs(defs: Record<string, ArgDef>, opts: ParseOptions = {})
   // (JSON.stringify, util.inspect, etc.) behave as expected.
   const safeFlags: Record<string, FlagValue> = { ...flags };
 
-  return { flags: safeFlags as ParsedArgs["flags"], positional, rest, unknown };
+  const values = opts.positionals ? resolvePositionals(positional, opts.positionals) : {};
+
+  return { flags: safeFlags as ParsedArgs["flags"], positional, rest, unknown, values };
 }

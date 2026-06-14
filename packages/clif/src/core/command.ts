@@ -6,7 +6,7 @@
  * command to run based on positional arguments.
  */
 
-import { type ArgDef, ArgError, type ParsedArgs, parseArgs } from "./args.js";
+import { type ArgDef, ArgError, type ParsedArgs, type PositionalDef, parseArgs } from "./args.js";
 import { bold, dim, red } from "./colors.js";
 import { symbols } from "./symbols.js";
 
@@ -15,6 +15,8 @@ export interface CommandDef<A extends Record<string, ArgDef> = Record<string, Ar
   description?: string;
   version?: string;
   args?: A;
+  /** Named/typed positional arguments, surfaced on `ctx.args.values`. */
+  positionals?: PositionalDef[];
   /**
    * Subcommands. Typed as `CommandDef<any>` so each entry can carry its own
    * arg schema without forcing a common shape on the parent.
@@ -156,6 +158,7 @@ async function runCommand(root: InternalCommand, opts?: RunOptions): Promise<voi
     const args = parseArgs(buildMergedArgs(command, root), {
       args: remaining,
       allowUnknown: false,
+      positionals: command.positionals,
     });
 
     if (args.flags.help) {
@@ -247,7 +250,21 @@ function printHelp(
   const path = [...parents.map((p) => p.name), command.name].filter(
     (n, i, arr) => i === 0 || n !== arr[0],
   );
-  lines.push(`Usage: ${path.join(" ")} [options]${command.commands?.length ? " [command]" : ""}`);
+  const posTokens = (command.positionals ?? []).map((p) => {
+    const inner = p.variadic ? `${p.name}...` : p.name;
+    return p.required ? `<${inner}>` : `[${inner}]`;
+  });
+  const usageParts = [path.join(" "), "[options]", ...posTokens];
+  if (command.commands?.length) usageParts.push("[command]");
+  lines.push(`Usage: ${usageParts.join(" ")}`);
+
+  if (command.positionals?.length) {
+    lines.push("", "Arguments:");
+    const maxLen = Math.max(...command.positionals.map((p) => p.name.length));
+    for (const p of command.positionals) {
+      lines.push(`  ${p.name.padEnd(maxLen + 2)}${dim(p.description ?? "")}`);
+    }
+  }
 
   if (command.commands?.length) {
     lines.push("", "Commands:");

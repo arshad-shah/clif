@@ -10,7 +10,7 @@
 import { CLEAR_LINE, CURSOR_HIDE, CURSOR_SHOW } from "../core/ansi.js";
 import { type Formatter, bold, cyan, dim, green, visibleLength } from "../core/colors.js";
 import { boxChars, boxStyles, statusIcon, symbols, treeChars } from "../core/symbols.js";
-import { truncate } from "../utils/helpers.js";
+import { truncate, wordWrap } from "../utils/helpers.js";
 
 // ── Box ─────────────────────────────────────────────────────────────────────
 
@@ -132,6 +132,11 @@ export interface TableOptions {
    * fall back to `"left"`). Headers align with their column.
    */
   align?: Align | Align[];
+  /**
+   * Wrap cells wider than `maxColumnWidth` onto multiple lines instead of
+   * truncating them. No effect without `maxColumnWidth`.
+   */
+  wrap?: boolean;
 }
 
 export function table(rows: string[][], opts: TableOptions = {}): string {
@@ -142,6 +147,7 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
     compact = false,
     maxColumnWidth,
     align = "left",
+    wrap = false,
   } = opts;
   const allRows = headers ? [headers, ...rows] : rows;
 
@@ -180,19 +186,33 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
   for (let r = 0; r < allRows.length; r++) {
     const row = allRows[r]!;
     const isHeader = headers && r === 0;
-    const cells = widths.map((w, c) => {
+
+    // Resolve each cell to one or more physical lines: wrapped (when `wrap`
+    // and the cell overflows its column), truncated (when capped without
+    // wrap), or a single verbatim line.
+    const colLines = widths.map((w, c) => {
       const raw = row[c] ?? "";
+      if (wrap && maxColumnWidth && visibleLength(raw) > w) {
+        return wordWrap(raw, w).split("\n");
+      }
       const trimmed =
         maxColumnWidth && visibleLength(raw) > maxColumnWidth ? truncate(raw, maxColumnWidth) : raw;
-      const padded = padTo(trimmed, visibleLength(trimmed), w, alignments[c]!);
-      return isHeader ? headerColor(padded) : padded;
+      return [trimmed];
     });
+    const height = Math.max(1, ...colLines.map((l) => l.length));
 
-    if (border) {
-      const v = boxChars.vertical;
-      lines.push(`${v} ${cells.join(` ${v} `)} ${v}`);
-    } else {
-      lines.push(`  ${cells.join("  ")}  `);
+    for (let li = 0; li < height; li++) {
+      const cells = widths.map((w, c) => {
+        const text = colLines[c]![li] ?? "";
+        const padded = padTo(text, visibleLength(text), w, alignments[c]!);
+        return isHeader ? headerColor(padded) : padded;
+      });
+      if (border) {
+        const v = boxChars.vertical;
+        lines.push(`${v} ${cells.join(` ${v} `)} ${v}`);
+      } else {
+        lines.push(`  ${cells.join("  ")}  `);
+      }
     }
 
     if (isHeader && !compact && border) lines.push(midSep);
@@ -293,6 +313,10 @@ export interface SpinnerOptions {
   interval?: number;
   color?: Formatter;
   stream?: NodeJS.WritableStream;
+  /** Text printed before the frame/icon on every line (e.g. a step counter). */
+  prefixText?: string;
+  /** Text printed after the label on every line. */
+  suffixText?: string;
 }
 
 const DEFAULT_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -304,7 +328,14 @@ function isStreamTTY(stream: NodeJS.WritableStream): boolean {
 }
 
 export function createSpinner(opts: SpinnerOptions = {}) {
-  const { frames = DEFAULT_FRAMES, interval = 80, color = cyan, stream = process.stderr } = opts;
+  const {
+    frames = DEFAULT_FRAMES,
+    interval = 80,
+    color = cyan,
+    stream = process.stderr,
+    prefixText = "",
+    suffixText = "",
+  } = opts;
   const tty = isStreamTTY(stream);
 
   let text = opts.text ?? "";
@@ -313,9 +344,14 @@ export function createSpinner(opts: SpinnerOptions = {}) {
   let isSpinning = false;
   let sigintHandler: (() => void) | null = null;
 
+  /** Frame a body (frame/icon + label) with the fixed prefix/suffix. */
+  function line(body: string): string {
+    return `${prefixText}${body}${suffixText}`;
+  }
+
   function render() {
     const frame = color(frames[frameIdx % frames.length]!);
-    stream.write(`${CLEAR_LINE}${frame} ${text}`);
+    stream.write(`${CLEAR_LINE}${line(`${frame} ${text}`)}`);
     frameIdx++;
   }
 
@@ -354,7 +390,7 @@ export function createSpinner(opts: SpinnerOptions = {}) {
         process.once("SIGINT", sigintHandler);
       } else {
         // Non-TTY: single static line so logs stay readable.
-        stream.write(`${color(frames[0]!)} ${text}\n`);
+        stream.write(`${line(`${color(frames[0]!)} ${text}`)}\n`);
       }
       return api;
     },
@@ -364,16 +400,16 @@ export function createSpinner(opts: SpinnerOptions = {}) {
       return api;
     },
     succeed(msg?: string) {
-      return api.stop(`${statusIcon("success")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("success")} ${msg ?? text}`));
     },
     fail(msg?: string) {
-      return api.stop(`${statusIcon("error")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("error")} ${msg ?? text}`));
     },
     warn(msg?: string) {
-      return api.stop(`${statusIcon("warning")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("warning")} ${msg ?? text}`));
     },
     info(msg?: string) {
-      return api.stop(`${statusIcon("info")} ${msg ?? text}`);
+      return api.stop(line(`${statusIcon("info")} ${msg ?? text}`));
     },
     update(msg: string) {
       text = msg;

@@ -320,6 +320,36 @@ describe("table alignment", () => {
   });
 });
 
+// ── Table — cell wrapping ───────────────────────────────────────────────────
+
+describe("table wrap", () => {
+  it("wraps long cells to multiple lines instead of truncating", () => {
+    const out = stripAnsi(
+      table([["hello world foo", "x"]], { maxColumnWidth: 7, wrap: true, border: false }),
+    );
+    const lines = out.split("\n");
+    expect(lines.length).toBeGreaterThan(1);
+    expect(out).toContain("hello");
+    expect(out).toContain("world");
+    expect(out).toContain("foo");
+    expect(out).not.toContain("…");
+  });
+
+  it("aligns wrapped cells alongside taller neighbours", () => {
+    const out = stripAnsi(
+      table([["a b c", "tall"]], { maxColumnWidth: 1, wrap: true, border: true }),
+    );
+    // col0 "a b c" wraps to 3 rows; col1 "tall" occupies the first, blanks after.
+    const body = out.split("\n").filter((l) => l.includes("│"));
+    expect(body.length).toBe(3);
+  });
+
+  it("still truncates when wrap is false (default)", () => {
+    const out = stripAnsi(table([["hello world foo"]], { maxColumnWidth: 7 }));
+    expect(out).toContain("…");
+  });
+});
+
 // ── KeyValue ────────────────────────────────────────────────────────────────
 
 describe("keyValue", () => {
@@ -575,6 +605,45 @@ describe("createSpinner", () => {
     s.update("new text");
     // Should return this for chaining
     expect(s.update("newer")).toBe(s);
+  });
+
+  it("frames the label with prefixText and suffixText", () => {
+    const chunks: string[] = [];
+    const stream = {
+      write: (s: string) => {
+        chunks.push(s);
+        return true;
+      },
+      isTTY: true,
+    } as unknown as NodeJS.WritableStream;
+    const s = createSpinner({
+      stream,
+      text: "load",
+      prefixText: "[1/3] ",
+      suffixText: " — please wait",
+    });
+    s.start();
+    const out = chunks.join("");
+    expect(out).toContain("[1/3] ");
+    expect(out).toContain(" — please wait");
+    s.stop();
+  });
+
+  it("keeps prefix/suffix on a final state line", () => {
+    const chunks: string[] = [];
+    const stream = {
+      write: (s: string) => {
+        chunks.push(s);
+        return true;
+      },
+    } as unknown as NodeJS.WritableStream;
+    const s = createSpinner({ stream, prefixText: "» ", suffixText: " «" });
+    s.start("work");
+    s.succeed("done");
+    const out = chunks.join("");
+    expect(out).toContain("» ");
+    expect(out).toContain("done");
+    expect(out).toContain(" «");
   });
 });
 
