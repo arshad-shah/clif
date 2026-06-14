@@ -9,7 +9,7 @@
 
 import { CLEAR_LINE, CURSOR_HIDE, CURSOR_SHOW } from "../core/ansi.js";
 import { type Formatter, bold, cyan, dim, green, visibleLength } from "../core/colors.js";
-import { boxChars, statusIcon, symbols } from "../core/symbols.js";
+import { boxChars, statusIcon, symbols, treeChars } from "../core/symbols.js";
 import { truncate } from "../utils/helpers.js";
 
 // ── Box ─────────────────────────────────────────────────────────────────────
@@ -63,7 +63,11 @@ export function box(content: string, opts: BoxOptions = {}): string {
   const applyBorder = dimBorder ? (s: string) => dim(borderColor(s)) : borderColor;
 
   const lines = content.split("\n");
-  const maxContent = Math.max(...lines.map(visibleLength));
+  // Strip ANSI once per line up front — both the max-width pass and the
+  // per-line alignment pass below need the visible width, and visibleLength
+  // walks the whole string each time.
+  const lineWidths = lines.map(visibleLength);
+  const maxContent = lineWidths.length ? Math.max(...lineWidths) : 0;
 
   // Title in top border
   const titleStr = opts.title ? ` ${titleColor(opts.title)} ` : "";
@@ -89,8 +93,9 @@ export function box(content: string, opts: BoxOptions = {}): string {
   // Top padding
   for (let i = 0; i < (padding > 0 ? 1 : 0); i++) paddedLines.push(emptyLine);
 
-  for (const line of lines) {
-    const stripped = visibleLength(line);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li]!;
+    const stripped = lineWidths[li]!;
     const space = innerWidth - padding * 2 - stripped;
     let aligned: string;
     if (align === "center") {
@@ -248,8 +253,8 @@ function renderTree(root: TreeNode, prefix: string): string {
     for (let i = 0; i < root.children.length; i++) {
       const child = root.children[i]!;
       const isLast = i === root.children.length - 1;
-      const connector = isLast ? "└── " : "├── ";
-      const childPrefix = isLast ? "    " : "│   ";
+      const connector = isLast ? treeChars.lastBranch : treeChars.branch;
+      const childPrefix = isLast ? treeChars.indent : treeChars.vertical;
 
       // Recurse with the column owned by this child's subtree as the prefix.
       // The recursion bakes that prefix into every line below the child's

@@ -83,6 +83,16 @@ function clearLine(): void {
   write(CLEAR_LINE);
 }
 
+/** Normalise a raw stdin chunk (Buffer or string) to a string. */
+function toChunk(data: Buffer | string): string {
+  return typeof data === "string" ? data : data.toString();
+}
+
+/** A red validation-error line (no trailing newline), shown when input fails. */
+function errorLine(message: string): string {
+  return `${red("!")} ${message}`;
+}
+
 /**
  * Raw input bytes the prompts decode. Centralised so the control-character
  * literals aren't re-typed across the line reader, password reader, and menu
@@ -149,7 +159,7 @@ function readLineRaw(): Promise<string> {
     };
 
     const onData = (data: Buffer | string) => {
-      const chunk = typeof data === "string" ? data : data.toString();
+      const chunk = toChunk(data);
       for (let i = 0; i < chunk.length; i++) {
         const ch = chunk[i]!;
         if (ch === KEY.cr || ch === KEY.lf) {
@@ -205,14 +215,14 @@ export async function text(opts: TextOptions): Promise<string> {
     const value = input.trim() || opts.default || "";
 
     if (required && !value) {
-      write(`${red("!")} This field is required\n`);
+      write(`${errorLine("This field is required")}\n`);
       continue;
     }
 
     if (validate) {
       const result = validate(value);
       if (result !== true) {
-        write(`${red("!")} ${result}\n`);
+        write(`${errorLine(result)}\n`);
         continue;
       }
     }
@@ -249,7 +259,7 @@ export async function password(opts: PasswordOptions): Promise<string> {
     };
 
     const onData = (data: Buffer | string) => {
-      const chunk = typeof data === "string" ? data : data.toString();
+      const chunk = toChunk(data);
 
       // Process the chunk character-by-character so paste works correctly.
       for (let i = 0; i < chunk.length; i++) {
@@ -259,7 +269,7 @@ export async function password(opts: PasswordOptions): Promise<string> {
           if (validate) {
             const result = validate(value);
             if (result !== true) {
-              write(`\n${red("!")} ${result}\n`);
+              write(`\n${errorLine(result)}\n`);
               write(`${cyan(symbols.pointer)} `);
               value = "";
               return;
@@ -453,8 +463,7 @@ export async function select<T = string>(opts: SelectOptions<T>): Promise<T> {
     };
 
     const onData = (data: Buffer | string) => {
-      const s = typeof data === "string" ? data : data.toString();
-      const k = decodeKey(s);
+      const k = decodeKey(toChunk(data));
 
       if (k.up) {
         cursor = moveCursor(erasedOptions, cursor, -1);
@@ -532,8 +541,7 @@ export async function multiselect<T = string>(opts: MultiSelectOptions<T>): Prom
     };
 
     const onData = (data: Buffer | string) => {
-      const s = typeof data === "string" ? data : data.toString();
-      const k = decodeKey(s);
+      const k = decodeKey(toChunk(data));
 
       if (k.up) {
         cursor = moveCursor(erasedOptions, cursor, -1);

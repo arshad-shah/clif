@@ -41,6 +41,18 @@ export const boxChars = {
   cross: "┼",
 } as const;
 
+/** Connectors used by the `tree` renderer to draw the branch gutter. */
+export const treeChars = {
+  /** Branch leading to a non-final child. */
+  branch: "├── ",
+  /** Branch leading to the final child. */
+  lastBranch: "└── ",
+  /** Continuation gutter for descendants of a non-final child. */
+  vertical: "│   ",
+  /** Blank gutter for descendants of the final child. */
+  indent: "    ",
+} as const;
+
 /** The four colored status kinds and the formatter each conventionally uses. */
 export type StatusKind = "success" | "error" | "warning" | "info";
 
