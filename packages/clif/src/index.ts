@@ -127,6 +127,16 @@ export type {
   ProgressOptions,
 } from "./output/components.js";
 
+// Task runner
+export { createTaskList } from "./output/tasks.js";
+export type {
+  TaskNode,
+  TaskContext,
+  TaskListOptions,
+  TaskListResult,
+  TaskStatus,
+} from "./output/tasks.js";
+
 // Utilities
 export {
   isTTY,

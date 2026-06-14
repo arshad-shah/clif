@@ -24,6 +24,8 @@ export const symbols = {
   /** Checked / unchecked checkbox in a multi-select. */
   radioOn: "◉",
   radioOff: "○",
+  /** A skipped task / step. */
+  skipped: "⊘",
 } as const;
 
 /** Single-line box-drawing characters shared by `box` and `table`. */

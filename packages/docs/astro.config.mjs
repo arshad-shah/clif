@@ -49,6 +49,7 @@ export default defineConfig({
             { label: "Table", slug: "components/table" },
             { label: "List & Tree", slug: "components/list-tree" },
             { label: "Spinner & Progress", slug: "components/spinner-progress" },
+            { label: "Tasks", slug: "components/tasks" },
             { label: "Log & Divider", slug: "components/log-divider" },
           ],
         },

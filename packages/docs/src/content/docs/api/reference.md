@@ -52,7 +52,7 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 `box(content, opts?)`, `table(rows, opts?)`, `keyValue(data, opts?)`,
 `list(items, opts?)`, `tree(root)`,
 `divider(opts?)`, `banner(text, opts?)`,
-`createSpinner(opts?)`, `createProgress(opts?)`,
+`createSpinner(opts?)`, `createProgress(opts?)`, `createTaskList(tasks, opts?)`,
 `log.info(msg)`, `log.success(msg)`, `log.warn(msg)`, `log.error(msg)`, `log.debug(msg)`, `log.step(n, total, msg)`
 
 ### Utilities
@@ -71,6 +71,7 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 `Formatter`, `Style`, `ColorStop`, `Align`,
 `BoxBorder`, `BoxOptions`, `TableOptions`, `KeyValueOptions`, `ListOptions`,
 `TreeNode`, `SpinnerOptions`, `ProgressOptions`,
+`TaskNode`, `TaskContext`, `TaskListOptions`, `TaskListResult`, `TaskStatus`,
 `ArgDef`, `ParsedArgs`, `ParseOptions`, `PositionalDef`, `PositionalValue`, `FlagValueOf`, `FlagsFromDefs`,
 `CommandDef`, `CommandContext`, `RunOptions`,
 `TextOptions`, `PasswordOptions`, `ConfirmOptions`, `SelectOption`, `SelectOptions`, `MultiSelectOptions`, `NumberOptions`,
