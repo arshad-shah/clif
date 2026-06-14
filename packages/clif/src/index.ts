@@ -114,6 +114,7 @@ export {
   log,
 } from "./output/components.js";
 export type {
+  Align,
   BoxOptions,
   BoxBorder,
   TableOptions,

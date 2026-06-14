@@ -16,6 +16,25 @@ import { truncate } from "../utils/helpers.js";
 
 export type BoxBorder = "single" | "double" | "round" | "bold" | "none";
 
+/** Horizontal alignment shared by `box` content and `table` cells. */
+export type Align = "left" | "center" | "right";
+
+/**
+ * Pad `text` to `width` columns under the given alignment. `vis` is the text's
+ * pre-computed visible width (ANSI-excluded), so callers that already know it
+ * don't pay for a second strip. A `width` smaller than `vis` yields no padding.
+ */
+function padTo(text: string, vis: number, width: number, align: Align): string {
+  const space = Math.max(0, width - vis);
+  if (space === 0) return text;
+  if (align === "right") return " ".repeat(space) + text;
+  if (align === "center") {
+    const left = Math.floor(space / 2);
+    return " ".repeat(left) + text + " ".repeat(space - left);
+  }
+  return text + " ".repeat(space);
+}
+
 const { topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical } = boxChars;
 
 const BORDERS: Record<
@@ -42,7 +61,7 @@ export interface BoxOptions {
   padding?: number;
   margin?: number;
   width?: number;
-  align?: "left" | "center" | "right";
+  align?: Align;
   borderColor?: Formatter;
   titleColor?: Formatter;
   dimBorder?: boolean;
@@ -51,13 +70,17 @@ export interface BoxOptions {
 export function box(content: string, opts: BoxOptions = {}): string {
   const {
     border = "round",
-    padding = 1,
+    padding: rawPadding = 1,
     margin = 0,
     align = "left",
     borderColor = (s: string) => s,
     titleColor = bold,
     dimBorder = false,
   } = opts;
+  // Normalise to a non-negative integer so it can drive both the horizontal
+  // space count and the vertical blank-line count without throwing on
+  // fractional or negative input.
+  const padding = Math.max(0, Math.trunc(rawPadding));
 
   const b = BORDERS[border];
   const applyBorder = dimBorder ? (s: string) => dim(borderColor(s)) : borderColor;
@@ -90,30 +113,19 @@ export function box(content: string, opts: BoxOptions = {}): string {
 
   const paddedLines: string[] = [];
 
-  // Top padding
-  for (let i = 0; i < (padding > 0 ? 1 : 0); i++) paddedLines.push(emptyLine);
+  // Top padding — one blank line per unit of padding.
+  for (let i = 0; i < padding; i++) paddedLines.push(emptyLine);
 
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li]!;
-    const stripped = lineWidths[li]!;
-    const space = innerWidth - padding * 2 - stripped;
-    let aligned: string;
-    if (align === "center") {
-      const left = Math.floor(space / 2);
-      const right = space - left;
-      aligned = " ".repeat(left) + line + " ".repeat(right);
-    } else if (align === "right") {
-      aligned = " ".repeat(space) + line;
-    } else {
-      aligned = line + " ".repeat(Math.max(0, space));
-    }
+    const aligned = padTo(line, lineWidths[li]!, innerWidth - padding * 2, align);
     paddedLines.push(
       `${marginStr}${applyBorder(b.v)}${padStr}${aligned}${padStr}${applyBorder(b.v)}`,
     );
   }
 
-  // Bottom padding
-  for (let i = 0; i < (padding > 0 ? 1 : 0); i++) paddedLines.push(emptyLine);
+  // Bottom padding — symmetric with the top.
+  for (let i = 0; i < padding; i++) paddedLines.push(emptyLine);
 
   const topMargin = "\n".repeat(margin > 0 ? 1 : 0);
   const bottomMargin = "\n".repeat(margin > 0 ? 1 : 0);
@@ -130,15 +142,31 @@ export interface TableOptions {
   /** Suppress the separator row between header and body for a denser layout. */
   compact?: boolean;
   maxColumnWidth?: number;
+  /**
+   * Per-column horizontal alignment. A single value applies to every column;
+   * an array aligns each column independently (columns past the array's end
+   * fall back to `"left"`). Headers align with their column.
+   */
+  align?: Align | Align[];
 }
 
 export function table(rows: string[][], opts: TableOptions = {}): string {
-  const { headers, border = true, headerColor = bold, compact = false, maxColumnWidth } = opts;
+  const {
+    headers,
+    border = true,
+    headerColor = bold,
+    compact = false,
+    maxColumnWidth,
+    align = "left",
+  } = opts;
   const allRows = headers ? [headers, ...rows] : rows;
 
   if (allRows.length === 0) return "";
 
   const colCount = Math.max(...allRows.map((r) => r.length));
+  const alignments: Align[] = Array.from({ length: colCount }, (_, c) =>
+    Array.isArray(align) ? (align[c] ?? "left") : align,
+  );
 
   // Calculate column widths
   const widths: number[] = [];
@@ -172,7 +200,7 @@ export function table(rows: string[][], opts: TableOptions = {}): string {
       const raw = row[c] ?? "";
       const trimmed =
         maxColumnWidth && visibleLength(raw) > maxColumnWidth ? truncate(raw, maxColumnWidth) : raw;
-      const padded = trimmed + " ".repeat(Math.max(0, w - visibleLength(trimmed)));
+      const padded = padTo(trimmed, visibleLength(trimmed), w, alignments[c]!);
       return isHeader ? headerColor(padded) : padded;
     });
 

@@ -51,11 +51,12 @@ bar.update(50);
 
 ### Progress options
 
-| Option       | Type        | Default                         | Description        |
-| ------------ | ----------- | ------------------------------- | ------------------ |
-| `total`      | `number`    | required                        | Total steps        |
-| `width`      | `number`    | `30`                            | Bar width in chars |
-| `complete`   | `string`    | `█`                             | Filled character   |
-| `incomplete` | `string`    | `░`                             | Empty character    |
-| `format`     | `string`    | `:bar :percent :current/:total` | Output format      |
-| `color`      | `Formatter` | `green`                         | Bar color          |
+| Option       | Type             | Default                         | Description        |
+| ------------ | ---------------- | ------------------------------- | ------------------ |
+| `total`      | `number`         | required                        | Total steps        |
+| `width`      | `number`         | `30`                            | Bar width in chars |
+| `complete`   | `string`         | `█`                             | Filled character   |
+| `incomplete` | `string`         | `░`                             | Empty character    |
+| `format`     | `string`         | `:bar :percent :current/:total` | Output format      |
+| `color`      | `Formatter`      | `green`                         | Bar color          |
+| `stream`     | `WritableStream` | `stderr`                        | Output stream      |
