@@ -13,9 +13,10 @@ output changes:
   public `rgb()` guard.
 - **`box`** strips ANSI once per line and reuses the widths across the
   max-width and alignment passes instead of computing `visibleLength` twice.
-- Centralised the remaining raw glyph/escape literals: `tree` connectors now
-  live in `symbols.ts` alongside the other box-drawing characters, and the
-  OSC 8 hyperlink introducer/terminator are named constants.
+- Centralised the remaining raw glyph/escape literals: `tree` connectors and
+  the full set of `box` / `table` border glyphs (`boxStyles`) now live in
+  `symbols.ts`, and the OSC 8 hyperlink introducer/terminator are named
+  constants — no box-drawing characters are inlined in the renderer anymore.
 - De-duplicated the formatter fold shared by `compose` and the `style` builder,
   and the raw-stdin chunk decoding plus validation-error line shared across the
   prompts.

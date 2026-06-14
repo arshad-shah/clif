@@ -9,7 +9,7 @@
 
 import { CLEAR_LINE, CURSOR_HIDE, CURSOR_SHOW } from "../core/ansi.js";
 import { type Formatter, bold, cyan, dim, green, visibleLength } from "../core/colors.js";
-import { boxChars, statusIcon, symbols, treeChars } from "../core/symbols.js";
+import { boxChars, boxStyles, statusIcon, symbols, treeChars } from "../core/symbols.js";
 import { truncate } from "../utils/helpers.js";
 
 // ── Box ─────────────────────────────────────────────────────────────────────
@@ -35,25 +35,9 @@ function padTo(text: string, vis: number, width: number, align: Align): string {
   return text + " ".repeat(space);
 }
 
-const { topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical } = boxChars;
-
-const BORDERS: Record<
-  BoxBorder,
-  { tl: string; tr: string; bl: string; br: string; h: string; v: string }
-> = {
-  single: {
-    tl: topLeft,
-    tr: topRight,
-    bl: bottomLeft,
-    br: bottomRight,
-    h: horizontal,
-    v: vertical,
-  },
-  double: { tl: "╔", tr: "╗", bl: "╚", br: "╝", h: "═", v: "║" },
-  round: { tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│" },
-  bold: { tl: "┏", tr: "┓", bl: "┗", br: "┛", h: "━", v: "┃" },
-  none: { tl: " ", tr: " ", bl: " ", br: " ", h: " ", v: " " },
-};
+// Border glyph sets are centralised in symbols.ts (`boxStyles`) so no raw
+// box-drawing characters are inlined here.
+const BORDERS: Record<BoxBorder, (typeof boxStyles)[BoxBorder]> = boxStyles;
 
 export interface BoxOptions {
   title?: string;
