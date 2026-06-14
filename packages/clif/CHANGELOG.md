@@ -1,5 +1,124 @@
 # clif
 
+## 1.3.0
+
+### Minor Changes
+
+- ad490ac: Enrich the color layer with new composable APIs and smarter rendering:
+  - **Chainable `style` API** — fluent, chalk-style styling such as
+    `style.red.bold.underline("error")` and `style.hex("#f5c76a").bold("title")`.
+    Each access returns a fresh, immutable builder that is safe to capture and reuse.
+  - **`gradient`** — paint text with a smooth multi-stop gradient
+    (`gradient(["#ff0080", "#7928ca"])("hello")`), one interpolated color per
+    visible character. Returns a regular formatter, so it composes.
+  - **`link`** — OSC 8 terminal hyperlinks with a `text (url)` fallback when
+    links/color are unsupported.
+  - **Automatic color downgrading** — `rgb`, `rgb256`, `hex`, and friends now map
+    to the nearest renderable color (truecolor → 256 → 16) on weaker terminals
+    instead of silently dropping all color. Exposes `rgbToAnsi256` and
+    `rgbToAnsi16` helpers.
+  - **3-digit hex shorthand** — `hex("#f80")` now expands to `#ff8800`.
+  - `stripAnsi` / `visibleLength` are now hyperlink-aware (OSC 8 markup no longer
+    counts toward visible width).
+
+  Published bundles are now minified, keeping the artifacts well under the size
+  budget despite the added features.
+
+- 0d1cda7: Six new capabilities across prompts, output, and argument parsing (all
+  additive — existing behavior and output are unchanged):
+  - **Named positional schema** — `parseArgs` accepts a `positionals` array
+    (`PositionalDef`) and surfaces named, typed, validated values on
+    `result.values`. Supports `type`, `required`, `choices`, `variadic`, and
+    `description`. `CommandDef.positionals` wires the same into `createCLI`,
+    including a usage line and an `Arguments:` help section.
+  - **`table` cell wrapping** — `wrap: true` wraps cells past `maxColumnWidth`
+    onto multiple lines (rows grow to their tallest cell) instead of truncating.
+  - **`spinner` prefix/suffix** — `prefixText` / `suffixText` frame the animated
+    label (and the final success/fail/warn/info line), e.g. for step counters.
+  - **`confirm` single-keypress** — a single `y`/`n` resolves immediately without
+    Enter; Enter alone still takes the default, and piped `y`/`yes` lines work.
+  - **`number` arrow-stepping** — ↑/↓ adjust the value by `step` (default 1),
+    clamped to `min`/`max`, alongside direct typing.
+
+  Internal: `select` and `multiselect` now share a single raw-mode menu driver
+  (`runMenu`), removing the duplicated key-handling/repaint/cleanup logic with no
+  behavior change.
+
+- 0d1cda7: Table column alignment + correct box padding:
+  - **`table` column alignment** — new `align` option on `TableOptions`, exported
+    as the `Align` type (`"left" | "center" | "right"`). Pass a single value to
+    align every column the same way, or an array to align each column
+    independently (columns past the array's end fall back to `"left"`, and headers
+    align with their column). Defaults to `"left"`, so existing output is
+    unchanged.
+  - **`box` padding now applies to every side** — `padding` previously scaled the
+    horizontal space but always emitted exactly one blank line top/bottom
+    regardless of its value. It now adds `padding` blank lines vertically to match
+    the horizontal columns, and normalises negative/fractional input to a
+    non-negative integer. The default (`padding: 1`) renders identically to
+    before.
+
+  Docs: refreshed the API reference (it was missing `style`, `gradient`, `link`,
+  `rgbToAnsi256`/`rgbToAnsi16`, and the `Style`/`ColorStop`/`Align` types, and
+  incorrectly claimed `hex` required a 6-digit value) and filled in the missing
+  option tables for `list`, `divider`, `banner`, `keyValue`, and the progress
+  bar's `stream`.
+
+- 0d1cda7: Add **`createTaskList`** — a hierarchical task runner. A run is a step with
+  embedded sub-steps; the orchestrator awaits each `task` and renders live status
+  as an indented tree (animated spinner on running steps, `✔`/`✖`/`⊘` on settle).
+  On a TTY it repaints in place; in a non-TTY stream it degrades to plain, ordered
+  lines with no cursor-control sequences.
+
+  ```ts
+  await createTaskList([
+    { title: "Resolve deps", task: () => resolve() },
+    {
+      title: "Build",
+      task: async (t) => {
+        t.update("compiling…");
+        await compile();
+      },
+      children: [
+        { title: "Lint", task: () => lint() },
+        { title: "Typecheck", task: () => typecheck() },
+      ],
+    },
+  ]).run();
+  ```
+
+  - **Embedded steps** via `children` (a step's own `task` runs before its kids).
+  - **`skip()`** — return a reason string (rendered `⊘ title (reason)`), `true` to
+    skip silently, or falsy to run.
+  - **Concurrency** — `concurrent: true` on a node runs its children in parallel,
+    or on the list options to parallelise the top level.
+  - **`continueOnError`** — keep going after a failure and inspect
+    `result.errors`; otherwise the first failure aborts and `run()` rejects.
+  - **Live label** — `ctx.update(text)` changes a running step's label.
+
+  Exposes `TaskNode`, `TaskContext`, `TaskListOptions`, `TaskListResult`, and
+  `TaskStatus`.
+
+### Patch Changes
+
+- 0d1cda7: Internal quality pass — faster rendering and less duplication, no API or
+  output changes:
+  - **`wrap` fast-path** — styled formatters skip the nested-close `replaceAll`
+    (and its throwaway allocation) when the input carries no escape sequence,
+    which is the overwhelmingly common case.
+  - **`gradient` per-character cost** — interpolated channels go straight to the
+    internal RGB formatter instead of re-validating every character through the
+    public `rgb()` guard.
+  - **`box`** strips ANSI once per line and reuses the widths across the
+    max-width and alignment passes instead of computing `visibleLength` twice.
+  - Centralised the remaining raw glyph/escape literals: `tree` connectors and
+    the full set of `box` / `table` border glyphs (`boxStyles`) now live in
+    `symbols.ts`, and the OSC 8 hyperlink introducer/terminator are named
+    constants — no box-drawing characters are inlined in the renderer anymore.
+  - De-duplicated the formatter fold shared by `compose` and the `style` builder,
+    and the raw-stdin chunk decoding plus validation-error line shared across the
+    prompts.
+
 ## 1.2.0
 
 ### Minor Changes
