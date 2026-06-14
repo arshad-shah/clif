@@ -11,6 +11,7 @@ export default defineConfig({
     starlight({
       title: "clif",
       tagline: "Tiny, zero-dependency CLI framework",
+      favicon: "/favicon.svg",
       logo: {
         light: "./src/assets/logo-light.svg",
         dark: "./src/assets/logo-dark.svg",
