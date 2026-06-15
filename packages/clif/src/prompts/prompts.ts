@@ -13,6 +13,7 @@
 import { CLEAR_LINE, CLEAR_PREV_LINE, cursorUp } from "../core/ansi.js";
 import { bold, cyan, dim, green, red } from "../core/colors.js";
 import { statusIcon, symbols } from "../core/symbols.js";
+import { type StdinLike, type StdoutLike, enterRawMode, toChunk } from "../core/tty.js";
 
 // ── Error type ──────────────────────────────────────────────────────────────
 
@@ -28,19 +29,6 @@ export class PromptError extends Error {
 }
 
 // ── Injectable stdio (used by tests) ────────────────────────────────────────
-
-interface StdinLike extends NodeJS.EventEmitter {
-  isTTY?: boolean;
-  isRaw?: boolean;
-  setRawMode?(b: boolean): unknown;
-  resume?(): unknown;
-  pause?(): unknown;
-}
-
-interface StdoutLike {
-  write(s: string): unknown;
-  isTTY?: boolean;
-}
 
 interface Stdio {
   stdin: StdinLike;
@@ -83,11 +71,6 @@ function clearLine(): void {
   write(CLEAR_LINE);
 }
 
-/** Normalise a raw stdin chunk (Buffer or string) to a string. */
-function toChunk(data: Buffer | string): string {
-  return typeof data === "string" ? data : data.toString();
-}
-
 /** A red validation-error line (no trailing newline), shown when input fails. */
 function errorLine(message: string): string {
   return `${red("!")} ${message}`;
@@ -107,21 +90,6 @@ const KEY = {
   arrowUp: "\x1b[A",
   arrowDown: "\x1b[B",
 } as const;
-
-/**
- * Enter raw-input mode and return a teardown closure that restores the prior
- * mode. Centralises the save / set / restore dance used by every interactive
- * prompt so callers can't accidentally leave the terminal in raw mode.
- */
-function enterRawMode(stdin: StdinLike): () => void {
-  const wasRaw = stdin.isRaw ?? false;
-  stdin.setRawMode?.(true);
-  stdin.resume?.();
-  return () => {
-    stdin.setRawMode?.(wasRaw);
-    stdin.pause?.();
-  };
-}
 
 /** Format the interactive question header shown to the user. */
 function formatQuestion(message: string): string {

@@ -11,6 +11,9 @@ import { ... } from "@arshad-shah/clif";
 
 // Prompts — interactive input (separate to keep core bundle tiny)
 import { ... } from "@arshad-shah/clif/prompts";
+
+// TUI — full-screen app runtime + widgets (separate, opt-in)
+import { ... } from "@arshad-shah/clif/tui";
 ```
 
 ## `@arshad-shah/clif` exports
@@ -65,6 +68,14 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 
 `text(opts)`, `password(opts)`, `confirm(opts)`, `select(opts)`, `multiselect(opts)`, `number(opts)`, `group(prompts)`
 `PromptError` — thrown on user cancellation (`code: "cancelled"`) or non-TTY stdin (`code: "not-a-tty"`).
+
+## `@arshad-shah/clif/tui` exports
+
+`createApp(opts)` → `{ run() }` — full-screen runtime driving the alternate screen, key input, and line-diff repaint.
+`createList(opts)`, `createViewport(opts)`, `createTextInput(opts?)` — composable widgets with `render()` / `handleKey(key)`.
+`TuiError` — thrown when run without a TTY (`code: "not-a-tty"`).
+
+Types: `App`, `AppOptions`, `AppHandle`, `Size`, `TuiErrorCode`, `Key`, `KeyName`, `List`, `ListOptions`, `Viewport`, `ViewportOptions`, `TextInput`, `TextInputOptions`.
 
 ## Types
 

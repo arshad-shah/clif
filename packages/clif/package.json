@@ -27,6 +27,16 @@
         "default": "./dist/prompts.cjs"
       }
     },
+    "./tui": {
+      "import": {
+        "types": "./dist/tui.d.mts",
+        "default": "./dist/tui.mjs"
+      },
+      "require": {
+        "types": "./dist/tui.d.cts",
+        "default": "./dist/tui.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "sideEffects": false,
@@ -49,6 +59,7 @@
     "cli",
     "terminal",
     "framework",
+    "tui",
     "prompts",
     "colors",
     "spinner",

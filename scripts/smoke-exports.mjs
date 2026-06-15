@@ -73,6 +73,7 @@ writeFileSync(
   `
 import { createCLI, parseArgs, bold, cyan, box, table, list, divider, log, style, gradient, link } from "@arshad-shah/clif";
 import { text, confirm, select } from "@arshad-shah/clif/prompts";
+import { createApp, createList, createViewport, createTextInput } from "@arshad-shah/clif/tui";
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -91,6 +92,10 @@ const checks = {
   text:    typeof text    === "function",
   confirm: typeof confirm === "function",
   select:  typeof select  === "function",
+  createApp:        typeof createApp        === "function",
+  createList:       typeof createList       === "function",
+  createViewport:   typeof createViewport   === "function",
+  createTextInput:  typeof createTextInput  === "function",
 };
 
 // Smoke: actually call a pure renderer and a color modifier.
@@ -131,6 +136,7 @@ writeFileSync(
   `
 const { createCLI, parseArgs, bold, box, table, list, divider, log, style, gradient, link } = require("@arshad-shah/clif");
 const { text, confirm, select } = require("@arshad-shah/clif/prompts");
+const { createApp, createList } = require("@arshad-shah/clif/tui");
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -147,6 +153,8 @@ const checks = {
   text:    typeof text    === "function",
   confirm: typeof confirm === "function",
   select:  typeof select  === "function",
+  createApp:  typeof createApp  === "function",
+  createList: typeof createList === "function",
 };
 
 if (!box("hello", { border: "round" }).includes("hello")) {
@@ -196,13 +204,17 @@ writeFileSync(
   `
 import { createCLI, parseArgs, type CommandDef, type ArgDef } from "@arshad-shah/clif";
 import { text, type SelectOption } from "@arshad-shah/clif/prompts";
+import { createApp, createList, type AppOptions, type Key } from "@arshad-shah/clif/tui";
 
 const _argDef: ArgDef = { type: "string", required: true };
 const _opt: SelectOption<"a"> = { label: "A", value: "a" };
 const _cli = createCLI({ name: "x", handler: () => {} } satisfies CommandDef);
 const _t: typeof text = text;
 const _p = parseArgs;
-void _argDef; void _opt; void _cli; void _t; void _p;
+const _appOpts: AppOptions = { render: (size) => String(size.cols), onKey: (k: Key) => void k };
+const _app = createApp(_appOpts);
+const _list = createList({ items: ["a", "b"] });
+void _argDef; void _opt; void _cli; void _t; void _p; void _app; void _list;
 `,
 );
 
