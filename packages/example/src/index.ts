@@ -21,6 +21,7 @@ import {
 } from "@arshad-shah/clif";
 import * as d from "./demos.js";
 import * as p from "./prompts.js";
+import * as t from "./tui.js";
 
 const ember = hex("#f5c76a");
 
@@ -67,6 +68,19 @@ const prompt: CommandDef = {
   ],
   handler: () => {
     log.info("pick a subcommand — try `kit prompt all` or `kit prompt --help`");
+  },
+};
+
+const tui: CommandDef = {
+  name: "tui",
+  description: "Full-screen TUI demos (run one at a time, interactive)",
+  commands: [
+    makeDemoCommand("menu", "Scrollable single-select list", t.tuiMenu),
+    makeDemoCommand("input", "Single-line text field with a caret", t.tuiInput),
+    makeDemoCommand("viewport", "Scrollable read-only log viewer", t.tuiViewport),
+  ],
+  handler: () => {
+    log.info("pick a subcommand — try `kit tui menu` or `kit tui --help`");
   },
 };
 
@@ -142,10 +156,10 @@ const cli = createCLI({
   name: "kit",
   version: "0.0.0",
   description: "End-to-end demo CLI for the clif framework.",
-  commands: [demo, prompt, args],
+  commands: [demo, prompt, tui, args],
   handler: () => {
     process.stdout.write(
-      `${bold(ember("kit"))} — clif e2e harness\n\nTry:\n  kit demo all\n  kit demo tasks\n  kit prompt all\n  kit args build src/index.ts -p 3000 -v -t a -t b -- --passthrough\n  kit --help\n`,
+      `${bold(ember("kit"))} — clif e2e harness\n\nTry:\n  kit demo all\n  kit demo tasks\n  kit prompt all\n  kit tui menu\n  kit args build src/index.ts -p 3000 -v -t a -t b -- --passthrough\n  kit --help\n`,
     );
   },
 });

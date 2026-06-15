@@ -32,3 +32,32 @@ export function cursorUp(n = 1): string {
 
 /** Move up one row and clear it — overwrite the line just printed. */
 export const CLEAR_PREV_LINE = `${cursorUp(1)}${CLEAR_LINE}`;
+
+// ── Full-screen control (TUI runtime) ────────────────────────────────────────
+//
+// The codes below are only used by full-screen apps (`clif/tui`). Inline
+// renderers — spinners, progress, prompts — never move the cursor absolutely or
+// switch screen buffers, so these stay separate from the line-oriented codes.
+
+/**
+ * Switch to the alternate screen buffer. A full-screen app paints here so the
+ * user's shell scrollback is left untouched and restored on exit.
+ */
+export const ALT_SCREEN_ENTER = `${CSI}?1049h`;
+
+/** Leave the alternate screen buffer, restoring the prior terminal contents. */
+export const ALT_SCREEN_EXIT = `${CSI}?1049l`;
+
+/** Erase the entire screen. Does not move the cursor. */
+export const ERASE_SCREEN = `${CSI}2J`;
+
+/** Erase from the cursor to the end of the screen. */
+export const ERASE_DOWN = `${CSI}J`;
+
+/** Move the cursor to the home position (row 1, column 1). */
+export const CURSOR_HOME = `${CSI}H`;
+
+/** Move the cursor to an absolute `(row, col)`, both 1-based. */
+export function cursorTo(row = 1, col = 1): string {
+  return `${CSI}${row};${col}H`;
+}

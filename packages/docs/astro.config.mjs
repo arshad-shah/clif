@@ -63,6 +63,10 @@ export default defineConfig({
           ],
         },
         {
+          label: "TUI",
+          items: [{ label: "TUI Runtime", slug: "components/tui" }],
+        },
+        {
           label: "API Reference",
           items: [{ label: "Full API", slug: "api/reference" }],
         },
