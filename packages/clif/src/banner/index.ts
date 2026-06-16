@@ -1,20 +1,22 @@
 /**
  * clif/banner — ASCII-art / FIGfont banner generator.
  *
- * Opt-in subpath: `import { figlet } from "@arshad-shah/clif/banner"`. Font data
- * lives only in this graph, so importing it never inflates clif's core bundle.
- * Built-in fonts are loaded lazily (one chunk per font) via {@link loadFont}.
+ * Opt-in subpath: `import { figlet } from "@arshad-shah/clif/banner"`. clif ships
+ * the FIGfont *engine* only — no bundled fonts — so importing it never inflates
+ * the core bundle and clif's concern stays purely CLI. Bring any FIGfont
+ * (`.flf`) you like via {@link parseFont} / {@link registerFont}.
  *
  * Built on clif's own colour system — pass a {@link Formatter} (e.g. `hex`,
  * `style`) or a multi-stop `gradient` applied across the rendered grid.
  *
  * @example
  * ```ts
- * import { figlet } from "@arshad-shah/clif/banner";
+ * import { readFileSync } from "node:fs";
+ * import { figlet, parseFont } from "@arshad-shah/clif/banner";
  * import { box } from "@arshad-shah/clif";
  *
- * const art = await figlet("clif", { font: "ansiShadow", gradient: ["#ff0080", "#7928ca"] });
- * console.log(box(art, { padding: 1 }));
+ * const slant = parseFont(readFileSync("./Slant.flf", "utf8"));
+ * console.log(box(figlet("clif", { font: slant, gradient: ["#ff0080", "#7928ca"] })));
  * ```
  */
 
@@ -25,16 +27,6 @@ import { type Font, type RenderOptions, parseFont, renderFont } from "./figfont.
 export { parseFont, renderFont } from "./figfont.js";
 export type { Font, LayoutMode, PrintDirection, RenderOptions } from "./figfont.js";
 
-/** Names of the fonts bundled with `@arshad-shah/clif/banner`. */
-export type BuiltinFontName =
-  | "standard"
-  | "slant"
-  | "small"
-  | "big"
-  | "ansiShadow"
-  | "banner"
-  | "mini";
-
 /** Direction a multi-stop gradient flows across the rendered art. */
 export type GradientDirection = "horizontal" | "vertical" | "diagonal";
 
@@ -42,8 +34,8 @@ export type GradientDirection = "horizontal" | "vertical" | "diagonal";
 export type Overflow = "clip" | "wrap";
 
 export interface FigletOptions extends RenderOptions {
-  /** Built-in font name, a registered name, or a preloaded {@link Font}. Default `"standard"`. */
-  font?: BuiltinFontName | (string & {}) | Font;
+  /** A parsed {@link Font}, or the name of one registered via {@link registerFont}. */
+  font: Font | string;
   /** Target width for alignment / overflow handling. Default `terminalWidth()`. */
   width?: number;
   /** Horizontal alignment within `width`. Default `"left"`. */
@@ -63,9 +55,8 @@ export interface FigletOptions extends RenderOptions {
 const registry = new Map<string, Font>();
 
 /**
- * Register a custom font from raw FIGfont (`.flf`) source under `name`, so it
- * can later be used by name. The parse happens once, here — the bundle is never
- * affected since the `.flf` string is supplied by the caller.
+ * Register a custom font from raw FIGfont (`.flf`) source under `name`, so it can
+ * later be referenced by name from {@link figlet}. Parsing happens once, here.
  */
 export function registerFont(name: string, flf: string): Font {
   const font = parseFont(flf);
@@ -73,40 +64,16 @@ export function registerFont(name: string, flf: string): Font {
   return font;
 }
 
-/** Dynamic-import the compact data for one built-in font (its own bundle chunk). */
-async function importBuiltin(name: BuiltinFontName): Promise<string> {
-  switch (name) {
-    case "standard":
-      return (await import("./fonts/standard.js")).flf;
-    case "slant":
-      return (await import("./fonts/slant.js")).flf;
-    case "small":
-      return (await import("./fonts/small.js")).flf;
-    case "big":
-      return (await import("./fonts/big.js")).flf;
-    case "ansiShadow":
-      return (await import("./fonts/ansiShadow.js")).flf;
-    case "banner":
-      return (await import("./fonts/banner.js")).flf;
-    case "mini":
-      return (await import("./fonts/mini.js")).flf;
-    default:
-      throw new Error(`loadFont: unknown built-in font "${String(name)}"`);
+/** Resolve a `Font` value — pass-through for objects, registry lookup for names. */
+function resolveFont(font: Font | string): Font {
+  if (typeof font !== "string") return font;
+  const found = registry.get(font);
+  if (!found) {
+    throw new Error(
+      `figlet: no font registered as "${font}" — pass a parsed Font (parseFont) or registerFont() it first`,
+    );
   }
-}
-
-/**
- * Resolve a font by name — a previously {@link registerFont}'d name, or one of
- * the built-ins (lazily imported and cached). Built-in font modules are split
- * into their own chunks, so only the fonts you actually use are ever loaded.
- */
-export async function loadFont(name: BuiltinFontName | string): Promise<Font> {
-  const cached = registry.get(name);
-  if (cached) return cached;
-  const flf = await importBuiltin(name as BuiltinFontName);
-  const font = parseFont(flf);
-  registry.set(name, font);
-  return font;
+  return found;
 }
 
 // ── Colour helpers ──────────────────────────────────────────────────────────────
@@ -218,14 +185,19 @@ function wrapInput(text: string, font: Font, renderOpts: RenderOptions, target: 
   return outLines.join("\n");
 }
 
-// ── Render entry points ──────────────────────────────────────────────────────────
+// ── Render entry point ───────────────────────────────────────────────────────────
 
 /**
- * Render `text` into a finished banner string using an already-loaded `font`.
- * Synchronous and pure. Use {@link figlet} when you want a font loaded by name.
+ * Render `text` as large ASCII-art lettering. Synchronous and pure: supply a
+ * parsed {@link Font} (or a name registered via {@link registerFont}) in
+ * `opts.font`.
+ *
+ * @returns The rendered, multi-line banner string. Returns `""` for empty input.
+ *   Code points the font doesn't define are skipped.
  */
-export function renderBanner(text: string, font: Font, opts: FigletOptions = {}): string {
+export function figlet(text: string, opts: FigletOptions): string {
   if (text.length === 0) return "";
+  const font = resolveFont(opts.font);
   const renderOpts: RenderOptions = {
     horizontalLayout: opts.horizontalLayout,
     verticalLayout: opts.verticalLayout,
@@ -252,17 +224,4 @@ export function renderBanner(text: string, font: Font, opts: FigletOptions = {})
   }
 
   return rows.join("\n");
-}
-
-/**
- * Render `text` as large ASCII-art lettering, loading the requested font by
- * name (lazily, cached) when needed.
- *
- * @returns A promise of the rendered, multi-line banner string. Returns `""`
- *   for empty input. Code points the font doesn't define are skipped.
- */
-export async function figlet(text: string, opts: FigletOptions = {}): Promise<string> {
-  const fontOpt = opts.font ?? "standard";
-  const font = typeof fontOpt === "string" ? await loadFont(fontOpt) : fontOpt;
-  return renderBanner(text, font, opts);
 }

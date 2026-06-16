@@ -42,7 +42,6 @@
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
-    "fonts": "node ../../scripts/compile-fonts.mjs",
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",

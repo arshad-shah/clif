@@ -73,7 +73,7 @@ writeFileSync(
   `
 import { createCLI, parseArgs, bold, cyan, box, table, list, divider, log, style, gradient, link } from "@arshad-shah/clif";
 import { text, confirm, select } from "@arshad-shah/clif/prompts";
-import { figlet, renderFont, parseFont, registerFont, loadFont } from "@arshad-shah/clif/banner";
+import { figlet, renderFont, parseFont, registerFont } from "@arshad-shah/clif/banner";
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -96,13 +96,15 @@ const checks = {
   renderFont:   typeof renderFont   === "function",
   parseFont:    typeof parseFont    === "function",
   registerFont: typeof registerFont === "function",
-  loadFont:     typeof loadFont     === "function",
 };
 
-// Smoke: lazily load a built-in font and render real ASCII art.
-const art = await figlet("hi", { font: "standard" });
-if (!art.includes("\\n")) {
-  console.error("ESM probe: figlet() did not render multi-line art");
+// Smoke: parse a user-supplied FIGfont and render with it (no bundled fonts).
+const codes = [];
+for (let c = 32; c <= 126; c++) codes.push(c);
+const trivialFlf = "flf2a$ 1 0 10 0 0\\n" + codes.map((c) => String.fromCodePoint(c) + "@@").join("\\n") + "\\n";
+const font = parseFont(trivialFlf);
+if (figlet("hi", { font }) !== "hi") {
+  console.error("ESM probe: figlet() did not render with a parsed font");
   process.exit(1);
 }
 
@@ -144,7 +146,7 @@ writeFileSync(
   `
 const { createCLI, parseArgs, bold, box, table, list, divider, log, style, gradient, link } = require("@arshad-shah/clif");
 const { text, confirm, select } = require("@arshad-shah/clif/prompts");
-const { figlet, renderFont, parseFont, registerFont, loadFont } = require("@arshad-shah/clif/banner");
+const { figlet, renderFont, parseFont, registerFont } = require("@arshad-shah/clif/banner");
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -165,7 +167,6 @@ const checks = {
   renderFont:   typeof renderFont   === "function",
   parseFont:    typeof parseFont    === "function",
   registerFont: typeof registerFont === "function",
-  loadFont:     typeof loadFont     === "function",
 };
 
 if (!box("hello", { border: "round" }).includes("hello")) {
@@ -177,25 +178,22 @@ if (!style.bold("x").includes("x") || !gradient(["#f00", "#00f"])("hi").includes
   process.exit(1);
 }
 
+// Smoke: parse a user-supplied FIGfont and render with it under CJS too.
+const codes = [];
+for (let c = 32; c <= 126; c++) codes.push(c);
+const trivialFlf = "flf2a$ 1 0 10 0 0\\n" + codes.map((c) => String.fromCodePoint(c) + "@@").join("\\n") + "\\n";
+registerFont("trivial", trivialFlf);
+if (figlet("hi", { font: "trivial" }) !== "hi") {
+  console.error("CJS probe: figlet() did not render with a registered font");
+  process.exit(1);
+}
+
 const failed = Object.entries(checks).filter(([, ok]) => !ok);
 if (failed.length) {
   console.error("CJS probe: missing exports —", failed.map(([k]) => k).join(", "));
   process.exit(1);
 }
-
-// Smoke: figlet() resolves through the lazy font import under CJS too.
-figlet("hi", { font: "standard" })
-  .then((art) => {
-    if (!art.includes("\\n")) {
-      console.error("CJS probe: figlet() did not render multi-line art");
-      process.exit(1);
-    }
-    console.log("  ✓ CJS probe: " + Object.keys(checks).length + " exports resolved");
-  })
-  .catch((err) => {
-    console.error("CJS probe: figlet() rejected —", err);
-    process.exit(1);
-  });
+console.log("  ✓ CJS probe: " + Object.keys(checks).length + " exports resolved");
 `,
 );
 
@@ -228,17 +226,17 @@ writeFileSync(
   `
 import { createCLI, parseArgs, type CommandDef, type ArgDef } from "@arshad-shah/clif";
 import { text, type SelectOption } from "@arshad-shah/clif/prompts";
-import { figlet, type FigletOptions, type Font } from "@arshad-shah/clif/banner";
+import { figlet, parseFont, type FigletOptions, type Font } from "@arshad-shah/clif/banner";
 
 const _argDef: ArgDef = { type: "string", required: true };
 const _opt: SelectOption<"a"> = { label: "A", value: "a" };
 const _cli = createCLI({ name: "x", handler: () => {} } satisfies CommandDef);
 const _t: typeof text = text;
 const _p = parseArgs;
-const _fig: typeof figlet = figlet;
-const _figOpts: FigletOptions = { font: "standard", gradient: ["#f00", "#00f"] };
-const _font: Font | undefined = undefined;
-void _argDef; void _opt; void _cli; void _t; void _p; void _fig; void _figOpts; void _font;
+const _font: Font = parseFont("flf2a$ 1 0 10 0 0\\n @@\\n");
+const _figOpts: FigletOptions = { font: _font, gradient: ["#f00", "#00f"] };
+const _art: string = figlet("x", _figOpts);
+void _argDef; void _opt; void _cli; void _t; void _p; void _font; void _figOpts; void _art;
 `,
 );
 

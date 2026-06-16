@@ -71,14 +71,14 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 
 ## `@arshad-shah/clif/banner` exports
 
-`figlet(text, opts?)` → `Promise<string>` — load a font by name (lazily) and render ASCII art
-`renderBanner(text, font, opts?)` → `string` — render with an already-loaded `Font`
-`renderFont(text, font, opts?)` → `string[]` — pure sub-character grid (no colour/alignment)
-`loadFont(name)` → `Promise<Font>` — resolve a built-in/registered font (cached)
-`parseFont(flf)` → `Font`, `registerFont(name, flf)` → `Font`
+`figlet(text, opts)` → `string` — render ASCII art with a supplied `font` (sync, pure)
+`renderFont(text, font, opts?)` → `string[]` — raw sub-character grid (no colour/alignment)
+`parseFont(flf)` → `Font` — parse raw `.flf` source
+`registerFont(name, flf)` → `Font` — parse and store a font for use by name
 
-Built-in fonts: `standard`, `slant`, `small`, `big`, `ansiShadow`, `banner`, `mini` — each a
-separate lazily-loaded chunk, so font data never weighs down the core bundle.
+clif bundles **no fonts** — only the FIGfont engine. Bring any `.flf`
+(e.g. from [xero/figlet-fonts](https://github.com/xero/figlet-fonts)) and load
+it with `parseFont` / `registerFont`.
 
 ## Types
 
@@ -90,4 +90,4 @@ separate lazily-loaded chunk, so font data never weighs down the core bundle.
 `CommandDef`, `CommandContext`, `RunOptions`,
 `TextOptions`, `PasswordOptions`, `ConfirmOptions`, `SelectOption`, `SelectOptions`, `MultiSelectOptions`, `NumberOptions`,
 `PromptErrorCode`,
-`Font`, `FigletOptions`, `BuiltinFontName`, `RenderOptions`, `LayoutMode`, `PrintDirection`, `GradientDirection`, `Overflow` (from `/banner`)
+`Font`, `FigletOptions`, `RenderOptions`, `LayoutMode`, `PrintDirection`, `GradientDirection`, `Overflow` (from `/banner`)

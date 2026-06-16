@@ -1,15 +1,21 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-  type Font,
-  figlet,
-  loadFont,
-  parseFont,
-  registerFont,
-  renderBanner,
-  renderFont,
-} from "../../src/banner/index.js";
+import { type Font, figlet, parseFont, registerFont, renderFont } from "../../src/banner/index.js";
 import { colorLevel, stripAnsi, visibleLength } from "../../src/core/colors.js";
 import { box } from "../../src/output/components.js";
+
+// Real FIGfonts used as dev-only fixtures — they exercise the smushing engine
+// but are never shipped (clif bundles no fonts). Sourced from the classic
+// figlet font set.
+const fixture = (name: string): Font =>
+  parseFont(
+    readFileSync(fileURLToPath(new URL(`./fixtures/${name}.flf`, import.meta.url)), "utf8"),
+  );
+
+const standard = fixture("Standard");
+const ansiShadow = fixture("ANSIShadow");
+const small = fixture("Small");
 
 // Force colors on by default; individual tests opt into a different level.
 beforeEach(() => colorLevel(1));
@@ -18,7 +24,7 @@ afterEach(() => colorLevel(1));
 /**
  * Build a trivial but valid height-1 FIGfont where every glyph renders as the
  * literal character itself. Lets us test the parser/registry without depending
- * on a bundled font's exact pixels.
+ * on a fixture font's exact pixels.
  */
 function trivialFlf(): string {
   const codes: number[] = [];
@@ -47,6 +53,11 @@ describe("parseFont", () => {
     expect(font.glyphs.has("A".codePointAt(0)!)).toBe(true);
   });
 
+  it("parses a real font's header (height + hardblank)", () => {
+    expect(standard.height).toBe(6);
+    expect(standard.hardblank).toBe("$");
+  });
+
   it("normalises CRLF line endings", () => {
     const crlf = trivialFlf().replace(/\n/g, "\r\n");
     const font = parseFont(crlf);
@@ -56,37 +67,31 @@ describe("parseFont", () => {
 });
 
 describe("renderFont (pure core)", () => {
-  let font: Font;
-  beforeEach(() => {
-    font = parseFont(trivialFlf());
-  });
-
   it("renders text through a trivial font verbatim", () => {
-    expect(renderFont("Hi", font)).toEqual(["Hi"]);
+    expect(renderFont("Hi", parseFont(trivialFlf()))).toEqual(["Hi"]);
   });
 
   it("skips code points the font does not define", () => {
     // Emoji is absent from the trivial font and must be silently dropped.
-    expect(renderFont("A😀B", font)).toEqual(["AB"]);
+    expect(renderFont("A😀B", parseFont(trivialFlf()))).toEqual(["AB"]);
   });
 
   it("stacks newlines into separate blocks", () => {
-    expect(renderFont("A\nB", font)).toEqual(["A", "B"]);
+    expect(renderFont("A\nB", parseFont(trivialFlf()))).toEqual(["A", "B"]);
   });
 
-  it("returns uniform-width rows with no hardblank leakage", async () => {
-    const std = await loadFont("standard");
-    const rows = renderFont("clif", std);
+  it("returns uniform-width rows with no hardblank leakage", () => {
+    const rows = renderFont("clif", standard);
     const widths = new Set(rows.map((r) => r.length));
     expect(widths.size).toBe(1); // all rows equal width
-    expect(rows.join("")).not.toContain(std.hardblank);
+    expect(rows.join("")).not.toContain(standard.hardblank);
     expect(rows.join("")).not.toContain("@"); // endmarks stripped
   });
 });
 
 describe("figlet", () => {
-  it("renders default (Standard) ASCII art", async () => {
-    const art = stripAnsi(await figlet("clif"));
+  it("renders ASCII art with a supplied font", () => {
+    const art = stripAnsi(figlet("clif", { font: standard }));
     expect(art).toMatchInlineSnapshot(`
       "       _ _  __ 
          ___| (_)/ _|
@@ -97,8 +102,8 @@ describe("figlet", () => {
     `);
   });
 
-  it("renders the ANSI Shadow font", async () => {
-    const art = stripAnsi(await figlet("Hi", { font: "ansiShadow" }));
+  it("renders a font with full-layout smushing", () => {
+    const art = stripAnsi(figlet("Hi", { font: ansiShadow }));
     expect(art).toMatchInlineSnapshot(`
       "██╗  ██╗██╗
       ██║  ██║██║
@@ -110,132 +115,92 @@ describe("figlet", () => {
     `);
   });
 
-  it("returns an empty string for empty input", async () => {
-    expect(await figlet("")).toBe("");
+  it("returns an empty string for empty input", () => {
+    expect(figlet("", { font: standard })).toBe("");
   });
 
-  it("honours horizontal layout overrides", async () => {
-    const w = async (layout: "full" | "fitted" | "default") =>
-      bannerWidth(await figlet("WAVE", { font: "standard", horizontalLayout: layout, width: 999 }));
+  it("honours horizontal layout overrides", () => {
+    const w = (layout: "full" | "fitted" | "default") =>
+      bannerWidth(figlet("WAVE", { font: standard, horizontalLayout: layout, width: 999 }));
     // Full width is widest; fitting (kerning) packs tighter; smushing tighter still.
-    expect(await w("full")).toBeGreaterThan(await w("fitted"));
-    expect(await w("fitted")).toBeGreaterThan(await w("default"));
+    expect(w("full")).toBeGreaterThan(w("fitted"));
+    expect(w("fitted")).toBeGreaterThan(w("default"));
   });
 
   it("reverses glyph order for right-to-left print direction", () => {
-    const font = parseFont(trivialFlf());
-    expect(renderBanner("abc", font, { printDirection: "rtl" })).toBe("cba");
+    expect(figlet("abc", { font: parseFont(trivialFlf()), printDirection: "rtl" })).toBe("cba");
   });
 });
 
 describe("width handling", () => {
-  it("clips art wider than the target width", async () => {
-    const art = await figlet("WIDE", { font: "big", width: 12, overflow: "clip" });
+  it("clips art wider than the target width", () => {
+    const art = figlet("WIDE", { font: standard, width: 12, overflow: "clip" });
     expect(bannerWidth(art)).toBeLessThanOrEqual(12);
   });
 
-  it("wraps art onto multiple lines when overflow is wrap", async () => {
-    const oneWord = await figlet("hello", { font: "small", width: 200 });
-    const wrapped = await figlet("hello world here", {
-      font: "small",
-      width: 24,
-      overflow: "wrap",
-    });
+  it("wraps art onto multiple lines when overflow is wrap", () => {
+    const oneWord = figlet("hello", { font: small, width: 200 });
+    const wrapped = figlet("hello world here", { font: small, width: 24, overflow: "wrap" });
     expect(bannerWidth(wrapped)).toBeLessThanOrEqual(24);
     // Wrapping stacks blocks vertically, so it is taller than a single word.
     expect(wrapped.split("\n").length).toBeGreaterThan(oneWord.split("\n").length);
   });
 
-  it("aligns rows within the target width", async () => {
+  it("aligns rows within the target width", () => {
     const lead = (s: string) => s.length - s.trimStart().length;
-    const centered = await figlet("hi", { font: "small", width: 40, align: "center" });
-    const left = await figlet("hi", { font: "small", width: 40, align: "left" });
+    const centered = figlet("hi", { font: small, width: 40, align: "center" });
+    const left = figlet("hi", { font: small, width: 40, align: "left" });
     // Centering indents every row further than left alignment does.
-    const row = 1;
-    expect(lead(centered.split("\n")[row]!)).toBeGreaterThan(lead(left.split("\n")[row]!));
+    expect(lead(centered.split("\n")[1]!)).toBeGreaterThan(lead(left.split("\n")[1]!));
   });
 });
 
 describe("colour", () => {
   it("applies a single formatter and stays ANSI-aware in width", async () => {
     colorLevel(3);
-    const plain = await figlet("Go", { font: "standard" });
     const { hex } = await import("../../src/core/colors.js");
-    const colored = await figlet("Go", { font: "standard", color: hex("#f5c76a") });
+    const plain = figlet("Go", { font: standard });
+    const colored = figlet("Go", { font: standard, color: hex("#f5c76a") });
     expect(colored).toContain("\x1b[");
     // Colour must not change the visible geometry.
     expect(bannerWidth(colored)).toBe(bannerWidth(plain));
   });
 
-  it("paints a gradient across the grid", async () => {
+  it("paints gradients across the grid (all directions)", () => {
     colorLevel(3);
-    const art = await figlet("Go", { font: "standard", gradient: ["#ff0080", "#7928ca"] });
-    expect(art).toContain("\x1b[38;2;");
-    expect(stripAnsi(art)).toBe(stripAnsi(await figlet("Go", { font: "standard" })));
+    const plain = stripAnsi(figlet("Go", { font: standard }));
+    for (const gradientDirection of ["horizontal", "vertical", "diagonal"] as const) {
+      const art = figlet("Go", {
+        font: standard,
+        gradient: ["#ff0080", "#7928ca"],
+        gradientDirection,
+      });
+      expect(art).toContain("\x1b[38;2;");
+      expect(stripAnsi(art)).toBe(plain); // colour never alters geometry
+    }
   });
 
-  it("degrades to plain text when colour is disabled", async () => {
+  it("degrades to plain text when colour is disabled", () => {
     colorLevel(0);
-    const art = await figlet("Go", { font: "standard", gradient: ["#ff0080", "#7928ca"] });
+    const art = figlet("Go", { font: standard, gradient: ["#ff0080", "#7928ca"] });
     expect(art).not.toContain("\x1b[");
   });
 
-  it("composes inside a box with correct framing", async () => {
-    const art = await figlet("Hi", { font: "small" });
-    const framed = stripAnsi(box(art, { padding: 0 }));
-    const lines = framed.split("\n");
-    // Every framed line is the same visible width — proof the box measured the
-    // multi-line banner correctly.
-    const widths = new Set(lines.map(visibleLength));
+  it("composes inside a box with correct framing", () => {
+    const framed = stripAnsi(box(figlet("Hi", { font: small }), { padding: 0 }));
+    const widths = new Set(framed.split("\n").map(visibleLength));
+    // One distinct width ⇒ the box measured the multi-line banner correctly.
     expect(widths.size).toBe(1);
   });
 });
 
-describe("registerFont & loadFont", () => {
-  it("round-trips a custom font registered from raw .flf", async () => {
+describe("registerFont", () => {
+  it("round-trips a custom font and renders it by name", () => {
     registerFont("trivial", trivialFlf());
-    expect(await figlet("Hey", { font: "trivial" })).toBe("Hey");
+    expect(figlet("Hey", { font: "trivial" })).toBe("Hey");
   });
 
-  it("caches built-in fonts across loads", async () => {
-    const a = await loadFont("mini");
-    const b = await loadFont("mini");
-    expect(a).toBe(b); // same cached instance
-  });
-
-  it("rejects an unknown built-in font", async () => {
-    await expect(loadFont("does-not-exist")).rejects.toThrow();
-  });
-
-  it("loads and renders every built-in font", async () => {
-    const fonts = ["standard", "slant", "small", "big", "ansiShadow", "banner", "mini"] as const;
-    for (const font of fonts) {
-      const art = await figlet("Ab", { font, width: 999 });
-      // Every font produces non-empty, multi-row art with stripped endmarks.
-      expect(art.length).toBeGreaterThan(0);
-      expect(art).not.toContain("@");
-    }
-  });
-});
-
-describe("gradient directions & accepts a preloaded font", () => {
-  it("supports vertical and diagonal gradients with rgb stops", async () => {
-    colorLevel(3);
-    const font = await loadFont("standard");
-    const vertical = renderBanner("Hi", font, {
-      gradient: [
-        [255, 0, 128],
-        [120, 40, 200],
-      ],
-      gradientDirection: "vertical",
-    });
-    const diagonal = renderBanner("Hi", font, {
-      gradient: ["#ff0080", "#7928ca"],
-      gradientDirection: "diagonal",
-    });
-    expect(vertical).toContain("\x1b[38;2;");
-    expect(diagonal).toContain("\x1b[38;2;");
-    // A preloaded Font object renders the same geometry as loading by name.
-    expect(stripAnsi(vertical)).toBe(stripAnsi(await figlet("Hi", { font: "standard" })));
+  it("throws a helpful error for an unregistered font name", () => {
+    expect(() => figlet("x", { font: "nope" })).toThrow(/no font registered/);
   });
 });

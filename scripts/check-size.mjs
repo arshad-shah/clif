@@ -9,9 +9,8 @@
  *
  *   • core    — `import "clif"` + `import "clif/prompts"` (the README's
  *               "< 16 KB gzipped" claim). Must NOT include the banner graph.
- *   • banner  — `import "clif/banner"`. Fonts are lazy (one chunk per font),
- *               so the realistic cost is the engine + shared chunks + the single
- *               largest font a consumer might select.
+ *   • banner  — `import "clif/banner"`. The FIGfont engine + shared chunks only;
+ *               clif bundles no fonts, so consumers bring their own `.flf`.
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -23,10 +22,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const distDir = join(here, "..", "packages", "clif", "dist");
 
 const CORE_BUDGET = 16 * 1024; // `clif` + `clif/prompts`, per format
-const BANNER_BUDGET = 16 * 1024; // `clif/banner` engine + shared + one font
+const BANNER_BUDGET = 12 * 1024; // `clif/banner` engine + shared chunks (no fonts)
 
-// Lazy per-font chunks, identified by the basenames `compile-fonts.mjs` emits.
-const FONT_CHUNK_RE = /^(standard|slant|small|big|ansiShadow|banner|mini)-/;
 // Any quoted relative specifier ending in .mjs/.cjs (static `from` or dynamic
 // `import()` / `require()` — minified output quotes them with " or `).
 const SPECIFIER_RE = /[`"'](\.\.?\/[^`"'\n]+\.(?:mjs|cjs))[`"']/g;
@@ -113,23 +110,16 @@ for (const [label, ext] of Object.entries(formats)) {
   // ── banner (clif/banner) ────────────────────────────────────────────────────
   if (allFiles.includes(bannerEntry)) {
     const bannerSet = reachable(bannerEntry);
-    const fontChunks = [...bannerSet].filter((f) => FONT_CHUNK_RE.test(name(f).split("/").pop()));
-    const base = [...bannerSet].filter((f) => !fontChunks.includes(f));
-    const baseTotal = base.reduce((s, f) => s + gz(f), 0);
-    const largestFont = fontChunks.reduce((m, f) => Math.max(m, gz(f)), 0);
-    const bannerTotal = baseTotal + largestFont;
+    const bannerTotal = [...bannerSet].reduce((s, f) => s + gz(f), 0);
     const bannerOver = bannerTotal > BANNER_BUDGET;
     anyOver ||= bannerOver;
 
     console.log(
-      `\n  ${label} banner  ${fmt(bannerTotal).padStart(8)}  (budget ${fmt(BANNER_BUDGET)}, engine+shared+largest font) ${bannerOver ? "✖ OVER" : "✓"}`,
+      `\n  ${label} banner  ${fmt(bannerTotal).padStart(8)}  (budget ${fmt(BANNER_BUDGET)}, engine + shared) ${bannerOver ? "✖ OVER" : "✓"}`,
     );
-    for (const f of base.sort((a, b) => gz(b) - gz(a))) {
+    for (const f of [...bannerSet].sort((a, b) => gz(b) - gz(a))) {
       console.log(`        ${name(f).padEnd(30)} ${fmt(gz(f)).padStart(8)}`);
     }
-    console.log(
-      `        ${`+ largest of ${fontChunks.length} font chunks`.padEnd(30)} ${fmt(largestFont).padStart(8)}`,
-    );
   }
   console.log("");
 }
