@@ -73,6 +73,7 @@ writeFileSync(
   `
 import { createCLI, parseArgs, bold, cyan, box, table, list, divider, log, style, gradient, link } from "@arshad-shah/clif";
 import { text, confirm, select } from "@arshad-shah/clif/prompts";
+import { figlet, renderFont, parseFont, registerFont, loadFont } from "@arshad-shah/clif/banner";
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -91,7 +92,19 @@ const checks = {
   text:    typeof text    === "function",
   confirm: typeof confirm === "function",
   select:  typeof select  === "function",
+  figlet:       typeof figlet       === "function",
+  renderFont:   typeof renderFont   === "function",
+  parseFont:    typeof parseFont    === "function",
+  registerFont: typeof registerFont === "function",
+  loadFont:     typeof loadFont     === "function",
 };
+
+// Smoke: lazily load a built-in font and render real ASCII art.
+const art = await figlet("hi", { font: "standard" });
+if (!art.includes("\\n")) {
+  console.error("ESM probe: figlet() did not render multi-line art");
+  process.exit(1);
+}
 
 // Smoke: actually call a pure renderer and a color modifier.
 const b = box("hello", { border: "round" });
@@ -131,6 +144,7 @@ writeFileSync(
   `
 const { createCLI, parseArgs, bold, box, table, list, divider, log, style, gradient, link } = require("@arshad-shah/clif");
 const { text, confirm, select } = require("@arshad-shah/clif/prompts");
+const { figlet, renderFont, parseFont, registerFont, loadFont } = require("@arshad-shah/clif/banner");
 
 const checks = {
   createCLI: typeof createCLI === "function",
@@ -147,6 +161,11 @@ const checks = {
   text:    typeof text    === "function",
   confirm: typeof confirm === "function",
   select:  typeof select  === "function",
+  figlet:       typeof figlet       === "function",
+  renderFont:   typeof renderFont   === "function",
+  parseFont:    typeof parseFont    === "function",
+  registerFont: typeof registerFont === "function",
+  loadFont:     typeof loadFont     === "function",
 };
 
 if (!box("hello", { border: "round" }).includes("hello")) {
@@ -163,7 +182,20 @@ if (failed.length) {
   console.error("CJS probe: missing exports —", failed.map(([k]) => k).join(", "));
   process.exit(1);
 }
-console.log("  ✓ CJS probe: " + Object.keys(checks).length + " exports resolved");
+
+// Smoke: figlet() resolves through the lazy font import under CJS too.
+figlet("hi", { font: "standard" })
+  .then((art) => {
+    if (!art.includes("\\n")) {
+      console.error("CJS probe: figlet() did not render multi-line art");
+      process.exit(1);
+    }
+    console.log("  ✓ CJS probe: " + Object.keys(checks).length + " exports resolved");
+  })
+  .catch((err) => {
+    console.error("CJS probe: figlet() rejected —", err);
+    process.exit(1);
+  });
 `,
 );
 
@@ -196,13 +228,17 @@ writeFileSync(
   `
 import { createCLI, parseArgs, type CommandDef, type ArgDef } from "@arshad-shah/clif";
 import { text, type SelectOption } from "@arshad-shah/clif/prompts";
+import { figlet, type FigletOptions, type Font } from "@arshad-shah/clif/banner";
 
 const _argDef: ArgDef = { type: "string", required: true };
 const _opt: SelectOption<"a"> = { label: "A", value: "a" };
 const _cli = createCLI({ name: "x", handler: () => {} } satisfies CommandDef);
 const _t: typeof text = text;
 const _p = parseArgs;
-void _argDef; void _opt; void _cli; void _t; void _p;
+const _fig: typeof figlet = figlet;
+const _figOpts: FigletOptions = { font: "standard", gradient: ["#f00", "#00f"] };
+const _font: Font | undefined = undefined;
+void _argDef; void _opt; void _cli; void _t; void _p; void _fig; void _figOpts; void _font;
 `,
 );
 

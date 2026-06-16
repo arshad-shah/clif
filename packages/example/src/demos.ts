@@ -251,6 +251,23 @@ export function demoBanner(): void {
   process.stdout.write(`${divider({ width: 50, label: "labeled divider", color: cyan })}\n`);
 }
 
+export async function demoFiglet(): Promise<void> {
+  // The FIGfont engine lives on the opt-in `/banner` subpath so its font data
+  // never weighs down clif's core bundle.
+  const { figlet } = await import("@arshad-shah/clif/banner");
+
+  section("figlet — ASCII-art fonts");
+  process.stdout.write(`${await figlet("clif", { font: "standard" })}\n`);
+  process.stdout.write(`${await figlet("ANSI", { font: "ansiShadow" })}\n`);
+
+  section("figlet — gradient inside a box");
+  const art = await figlet("banner", {
+    font: "slant",
+    gradient: ["#ff0080", "#f5c76a", "#7928ca"],
+  });
+  process.stdout.write(`${box(art, { padding: 1, borderColor: hex("#f5c76a") })}\n`);
+}
+
 export function demoLog(): void {
   section("log helpers");
   log.info("info message — routed to stdout");
@@ -405,6 +422,7 @@ export async function demoAll(): Promise<void> {
   demoTable();
   demoTree();
   demoBanner();
+  await demoFiglet();
   demoLog();
   await demoSpinner();
   await demoProgress();

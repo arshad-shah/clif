@@ -11,6 +11,9 @@ import { ... } from "@arshad-shah/clif";
 
 // Prompts — interactive input (separate to keep core bundle tiny)
 import { ... } from "@arshad-shah/clif/prompts";
+
+// Banner — FIGfont ASCII-art generator (font data stays out of core)
+import { ... } from "@arshad-shah/clif/banner";
 ```
 
 ## `@arshad-shah/clif` exports
@@ -66,6 +69,17 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 `text(opts)`, `password(opts)`, `confirm(opts)`, `select(opts)`, `multiselect(opts)`, `number(opts)`, `group(prompts)`
 `PromptError` — thrown on user cancellation (`code: "cancelled"`) or non-TTY stdin (`code: "not-a-tty"`).
 
+## `@arshad-shah/clif/banner` exports
+
+`figlet(text, opts?)` → `Promise<string>` — load a font by name (lazily) and render ASCII art
+`renderBanner(text, font, opts?)` → `string` — render with an already-loaded `Font`
+`renderFont(text, font, opts?)` → `string[]` — pure sub-character grid (no colour/alignment)
+`loadFont(name)` → `Promise<Font>` — resolve a built-in/registered font (cached)
+`parseFont(flf)` → `Font`, `registerFont(name, flf)` → `Font`
+
+Built-in fonts: `standard`, `slant`, `small`, `big`, `ansiShadow`, `banner`, `mini` — each a
+separate lazily-loaded chunk, so font data never weighs down the core bundle.
+
 ## Types
 
 `Formatter`, `Style`, `ColorStop`, `Align`,
@@ -75,4 +89,5 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 `ArgDef`, `ParsedArgs`, `ParseOptions`, `PositionalDef`, `PositionalValue`, `FlagValueOf`, `FlagsFromDefs`,
 `CommandDef`, `CommandContext`, `RunOptions`,
 `TextOptions`, `PasswordOptions`, `ConfirmOptions`, `SelectOption`, `SelectOptions`, `MultiSelectOptions`, `NumberOptions`,
-`PromptErrorCode`
+`PromptErrorCode`,
+`Font`, `FigletOptions`, `BuiltinFontName`, `RenderOptions`, `LayoutMode`, `PrintDirection`, `GradientDirection`, `Overflow` (from `/banner`)

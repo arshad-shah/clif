@@ -27,11 +27,22 @@
         "default": "./dist/prompts.cjs"
       }
     },
+    "./banner": {
+      "import": {
+        "types": "./dist/banner/index.d.mts",
+        "default": "./dist/banner/index.mjs"
+      },
+      "require": {
+        "types": "./dist/banner/index.d.cts",
+        "default": "./dist/banner/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "sideEffects": false,
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
+    "fonts": "node ../../scripts/compile-fonts.mjs",
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",
