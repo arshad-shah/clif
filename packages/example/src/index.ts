@@ -41,6 +41,7 @@ const demo: CommandDef = {
     makeDemoCommand("table", "Table & keyValue", d.demoTable),
     makeDemoCommand("tree", "Tree & list", d.demoTree),
     makeDemoCommand("banner", "Banner & divider", d.demoBanner),
+    makeDemoCommand("figlet", "ASCII-art FIGfonts (clif/banner)", d.demoFiglet),
     makeDemoCommand("log", "Log helpers (info/success/warn/error/debug)", d.demoLog),
     makeDemoCommand("spinner", "Spinner with succeed/fail/warn/info", d.demoSpinner),
     makeDemoCommand("progress", "Progress bar tick-to-complete", d.demoProgress),

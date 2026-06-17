@@ -11,6 +11,9 @@ import { ... } from "@arshad-shah/clif";
 
 // Prompts — interactive input (separate to keep core bundle tiny)
 import { ... } from "@arshad-shah/clif/prompts";
+
+// Banner — FIGfont ASCII-art generator (font data stays out of core)
+import { ... } from "@arshad-shah/clif/banner";
 ```
 
 ## `@arshad-shah/clif` exports
@@ -66,6 +69,17 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 `text(opts)`, `password(opts)`, `confirm(opts)`, `select(opts)`, `multiselect(opts)`, `number(opts)`, `group(prompts)`
 `PromptError` — thrown on user cancellation (`code: "cancelled"`) or non-TTY stdin (`code: "not-a-tty"`).
 
+## `@arshad-shah/clif/banner` exports
+
+`figlet(text, opts)` → `string` — render ASCII art with a supplied `font` (sync, pure)
+`renderFont(text, font, opts?)` → `string[]` — raw sub-character grid (no colour/alignment)
+`parseFont(flf)` → `Font` — parse raw `.flf` source
+`registerFont(name, flf)` → `Font` — parse and store a font for use by name
+
+clif bundles **no fonts** — only the FIGfont engine. Bring any `.flf`
+(e.g. from [xero/figlet-fonts](https://github.com/xero/figlet-fonts)) and load
+it with `parseFont` / `registerFont`.
+
 ## Types
 
 `Formatter`, `Style`, `ColorStop`, `Align`,
@@ -75,4 +89,5 @@ Pass `opts.positionals` (an array of `PositionalDef`) to get named/typed/validat
 `ArgDef`, `ParsedArgs`, `ParseOptions`, `PositionalDef`, `PositionalValue`, `FlagValueOf`, `FlagsFromDefs`,
 `CommandDef`, `CommandContext`, `RunOptions`,
 `TextOptions`, `PasswordOptions`, `ConfirmOptions`, `SelectOption`, `SelectOptions`, `MultiSelectOptions`, `NumberOptions`,
-`PromptErrorCode`
+`PromptErrorCode`,
+`Font`, `FigletOptions`, `RenderOptions`, `LayoutMode`, `PrintDirection`, `GradientDirection`, `Overflow` (from `/banner`)

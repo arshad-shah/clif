@@ -4,6 +4,8 @@
  * caller can sequence them or pick one.
  */
 
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   type TreeNode,
   banner,
@@ -51,6 +53,9 @@ import {
   wordWrap,
   yellow,
 } from "@arshad-shah/clif";
+// The FIGfont engine lives on the opt-in `/banner` subpath. clif ships no
+// fonts, so we load one ourselves from `fonts/Slant.flf` (see demoFiglet).
+import { figlet, parseFont } from "@arshad-shah/clif/banner";
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -251,6 +256,23 @@ export function demoBanner(): void {
   process.stdout.write(`${divider({ width: 50, label: "labeled divider", color: cyan })}\n`);
 }
 
+export function demoFiglet(): void {
+  // Bring your own FIGfont: parse any `.flf` once, then render with it.
+  const slant = parseFont(
+    readFileSync(fileURLToPath(new URL("../fonts/Slant.flf", import.meta.url)), "utf8"),
+  );
+
+  section("figlet — ASCII-art (bring your own .flf)");
+  process.stdout.write(`${figlet("clif", { font: slant })}\n`);
+
+  section("figlet — gradient inside a box");
+  const art = figlet("banner", {
+    font: slant,
+    gradient: ["#ff0080", "#f5c76a", "#7928ca"],
+  });
+  process.stdout.write(`${box(art, { padding: 1, borderColor: hex("#f5c76a") })}\n`);
+}
+
 export function demoLog(): void {
   section("log helpers");
   log.info("info message — routed to stdout");
@@ -405,6 +427,7 @@ export async function demoAll(): Promise<void> {
   demoTable();
   demoTree();
   demoBanner();
+  demoFiglet();
   demoLog();
   await demoSpinner();
   await demoProgress();

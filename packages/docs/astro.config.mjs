@@ -46,6 +46,7 @@ export default defineConfig({
           label: "Components",
           items: [
             { label: "Box", slug: "components/box" },
+            { label: "Banner & FIGfonts", slug: "components/banner" },
             { label: "Table", slug: "components/table" },
             { label: "List & Tree", slug: "components/list-tree" },
             { label: "Spinner & Progress", slug: "components/spinner-progress" },
