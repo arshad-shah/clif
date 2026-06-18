@@ -3,7 +3,7 @@ title: Introduction
 description: What is clif and why does it exist?
 ---
 
-**clif** is a tiny, zero-dependency CLI framework for Node.js. It replaces the need for `commander`, `chalk`, `inquirer`, `ora`, and `cli-table3` — all in a single, composable package under 15 KB gzipped.
+**clif** is a tiny, zero-dependency CLI framework for Node.js. It replaces the need for `commander`, `chalk`, `inquirer`, `ora`, and `cli-table3` — all in a single, composable package under 16 KB gzipped.
 
 ## Why clif?
 
@@ -22,7 +22,7 @@ Each comes with its own API patterns, version constraints, and transitive depend
 
 - **Zero dependencies** — nothing in `node_modules` except clif itself
 - **Composable** — every function is standalone, pure where possible, and returns strings
-- **Tree-shakeable** — import only what you need via `clif` or `clif/prompts`
+- **Tree-shakeable** — import only what you need via `clif`, `clif/prompts`, or `clif/banner`
 - **Fast** — no startup overhead, no config parsing, no plugin system
 - **Type-safe** — full TypeScript with strict types throughout
 - **Testable** — output components return strings, making unit testing trivial
@@ -40,4 +40,6 @@ Each comes with its own API patterns, version constraints, and transitive depend
 | List / Tree | —                 | Ordered/unordered lists, recursive tree rendering     |
 | Spinner     | ora               | Animated spinner with succeed/fail/warn states        |
 | Progress    | cli-progress      | Progress bar with customizable format                 |
+| Tasks       | listr2            | Hierarchical task runner with live tree status        |
 | Prompts     | inquirer, prompts | text, password, confirm, select, multiselect, number  |
+| Banner      | figlet            | FIGfont ASCII-art engine on the `clif/banner` subpath |
