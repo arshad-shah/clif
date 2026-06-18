@@ -38,17 +38,18 @@ cli.run();
 ## What's included
 
 - **Argument parser** — typed flags, aliases, defaults, choices, positionals, `--` rest
-- **Colors** — 16/256/truecolor + modifiers, NO_COLOR/FORCE_COLOR aware
+- **Colors** — 16/256/truecolor + modifiers, chainable `style`, `gradient`, `link`, NO_COLOR/FORCE_COLOR aware
 - **Output** — `box`, `table`, `keyValue`, `list`, `tree`, `divider`, `banner`, `log`
-- **Async UI** — `createSpinner`, `createProgress`
+- **Async UI** — `createSpinner`, `createProgress`, and `createTaskList` (a hierarchical task runner)
 - **Prompts** (`@arshad-shah/clif/prompts`) — `text`, `password`, `confirm`, `select`, `multiselect`, `number`, `group`
+- **Banner** (`@arshad-shah/clif/banner`) — a FIGfont ASCII-art engine: `figlet`, `parseFont`, `registerFont` (bring your own `.flf`)
 - **Commands** — composable nested subcommands with automatic `--help` / `--version`
 
 ## Design principles
 
 - Zero dependencies — nothing in `node_modules` except clif
 - Composable — every function is standalone, pure where possible
-- Tree-shakeable — split entry points (`@arshad-shah/clif`, `@arshad-shah/clif/prompts`)
+- Tree-shakeable — split entry points (`@arshad-shah/clif`, `@arshad-shah/clif/prompts`, `@arshad-shah/clif/banner`)
 - Type-safe — strict TypeScript end to end
 - Testable — output components return strings
 - Respectful — honors `NO_COLOR`, `FORCE_COLOR`, pipe detection, terminal width
